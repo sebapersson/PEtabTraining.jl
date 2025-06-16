@@ -1,0 +1,23 @@
+name = "PEtabTraining"
+uuid = "ed36266e-456b-4f4e-a6d5-e20de27032ad"
+version = "0.1.0"
+
+[deps]
+ArgCheck = "dce04be8-c92d-5529-be00-80e4d2c0e197"
+CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
+Catalyst = "479239e8-5488-4da2-87a7-35f2df7eef83"
+DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
+ModelingToolkit = "961ee093-0014-501f-94e3-6117800e7a78"
+OrdinaryDiffEqRosenbrock = "43230ef6-c299-4910-a778-202eb28ce4ce"
+PEtab = "48d54b35-e43e-4a66-a5a1-dde6b987cf69"
+Revise = "295af30f-e4ad-537b-8983-00126c2a3abe"
+RuntimeGeneratedFunctions = "7e49a35a-f44a-4d26-94aa-eba1b4ca6b47"
+SBMLImporter = "210efffb-c3c8-456d-a807-6f55560b12fe"
+
+[compat]
+Catalyst = "15.0.8"
+ModelingToolkit = "9.80.1"
+OrdinaryDiffEqRosenbrock = "1.11.0"
+Revise = "3.8.0"
+RuntimeGeneratedFunctions = "0.5.15"
+SBMLImporter = "3.0.1"
