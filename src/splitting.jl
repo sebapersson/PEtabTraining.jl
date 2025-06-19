@@ -3,41 +3,86 @@ struct SplitUniform
     mode::Symbol
 end
 function SplitUniform(nsplits::Integer; mode::Symbol = :time)::SplitUniform
-    @argcheck mode in [:time, :condition]
+    @argcheck mode in [:time, :condition] "Mode must be either :time or :condition"
     return SplitUniform(nsplits, mode)
 end
+struct SplitCustom{T <: Union{AbstractFloat, String, Symbol}}
+    nsplits::Integer
+    mode::Symbol
+    splits::Vector{Vector{T}}
+end
+function SplitCustom(splits::Vector{Vector})::SplitCustom
+    if !(all(eltype.(splits) isa Real) || all(eltype.(splits) isa String) || all(eltype.(splits) isa Symbol))
+        throw(ArgumentError("Provided splits must be a Vector{Vector} where the inner \
+            Vector all are of the same type; either Vector{Real} if splitting on time, \
+            or either Vector{String} or Vector{Symbol} if splitting on conditions"))
+    end
+    nsplits = length(splits)
+    mode = all(eltype.(splits) isa Real) ? :time : :condition
+    return SplitCustom(nsplits, mode, splits)
+end
 
-function _split(split_algorithm::SplitUniform,
-        prob::PEtabODEProblem)::Vector{Dict{Symbol, DataFrame}}
+function _split(split_algorithm::SplitUniform, prob::PEtabODEProblem)
     if split_algorithm.mode == :time
         return _split_uniform_time(prob, split_algorithm.nsplits)
     end
     return _split_uniform_conditions(prob, split_algorithm.nsplits)
 end
+function _split(split_algorithm::SplitCustom, prob::PEtabODEProblem)
+    for (i, split) in pairs(split_algorithm.splits)
+        isempty(split) && continue
+        throw(ArgumentError("Provided interval $i is empty. When providing custom \
+            splitting intervals no interval must be empty"))
+    end
+    if split_algorithm.mode == :time
+        return _split_custom_time(prob, split_algorithm.splits, split_algorithm.nsplits)
+    end
+    return _split_custom_conditions(prob, split_algorithm.splits, split_algorithm.nsplits)
+end
 
-function _split_uniform_time(
-        prob::PEtabODEProblem, nsplits::Integer)::Vector{Dict{Symbol, DataFrame}}
+function _split_uniform_time(prob::PEtabODEProblem, nsplits::Integer)
     mdf = prob.model_info.model.petab_tables[:measurements]
-    unique_timepoints = mdf.time |> unique |> sort
-    if length(unique_timepoints) < nsplits
+    unique_t = _get_unique_timepoints(mdf)
+    if length(unique_t) < nsplits
         throw(ArgumentError("Number of unique time-points in the measurement table must be \
           greater than or equal to number of splits (number of curriculum stages or \
-          multiple shooting windows). There are $(length(unique_timepoints)) unique \
+          multiple shooting windows). There are $(length(unique_t)) unique \
           time-points and nsplits=$(nsplits)."),
         )
     end
-
-    tmaxs = _makechunks(unique_timepoints, nsplits) .|> maximum
-    out = Vector{Dict{Symbol, DataFrame}}(undef, nsplits)
-    for i in 1:nsplits
-        out[i] = copy(prob.model_info.model.petab_tables)
-        out[i][:measurements] = mdf[mdf[!, :time] .≤ tmaxs[i], :]
-    end
-    return out
+    splits = _makechunks(unique_t, nsplits)
+    return _split_time(splits, mdf, prob)
 end
 
-function _split_uniform_conditions(
-        prob::PEtabODEProblem, nsplits::Integer)::Vector{Dict{Symbol, DataFrame}}
+function _split_custom_time(prob::PEtabODEProblem, splits::Vector{Vector{<:Real}}, nsplits::Integer)
+    for i in 1:(nsplits - 1)
+        splits[i][end] == splits[i+1][1] && continue
+        throw(ArgumentError("When providing custom time-splitting intervals, the endpoint \
+            of interval i must have the same values as the starting point for interval \
+            [i+1]. This does not hold for i=$i; its end-point is $(splits[i][end]) and \
+            the starting point for interval $(i+1) is $(splits[i][1])"))
+    end
+    for split in splits
+        isorted(split) && continue
+        throw(ArgumentError("When providing custom time-splitting intervals, the \
+                the intervals must contain time-points in sorted order. This does not
+                hold for interval $i: $split"))
+    end
+    mdf = prob.model_info.model.petab_tables[:measurements]
+    unique_t = _get_unique_timepoints(mdf)
+    for split in splits
+        if !isempty(intersect(unique_t .≥ minimum(split), unique_t .< maximum(split)))
+            continue
+        end
+        throw(ArgumentError("When providing custom time-splitting intervals, each \
+                time-interval must contain at least on time-point in the measurements \
+                table. This does not hold for interval $i: as in the measurement tables
+                no time-points lie in the interval [$(split[1]), $(split[end]))"))
+    end
+    return _split_time(splits, mdf, prob)
+end
+
+function _split_uniform_conditions(prob::PEtabODEProblem, nsplits::Integer)
     conditions_ids = prob.model_info.simulation_info.conditionids[:simulation] .|> string
     if length(conditions_ids) < nsplits
         throw(ArgumentError("Number of conditions in the measurement table must be \
@@ -57,8 +102,18 @@ function _split_uniform_conditions(
     return out
 end
 
-struct SplitCustom{T <: Union{AbstractFloat, String, Symbol}}
-    nsplits::Integer
-    mode::Symbol
-    splits::Vector{Vector{T}}
+function _get_unique_timepoints(mdf::DataFrame)::Vector{Float64}
+    return mdf.time |>
+        unique |>
+        sort
+end
+
+function _split_time(splits, mdf::DataFrame, prob::PEtabODEProblem)::Vector{Dict{Symbol, DataFrame}}
+    out = Vector{Dict{Symbol, DataFrame}}(undef, length(splits))
+    for (i, split) in pairs(splits)
+        tmax = maximum(split)
+        out[i] = copy(prob.model_info.model.petab_tables)
+        out[i][:measurements] = mdf[mdf[!, :time] .≤ tmax, :]
+    end
+    return out
 end
