@@ -15,7 +15,7 @@ function SplitCustom(splits::Union{Vector, Vector{<:Vector}})::SplitCustom
     # For curriculum the only information that must be provided is the end time-point
     # for each curriculum step. Internally, for a common interface, splits must be a
     # Vector{Vector}.
-    if splits isa Vector
+    if splits isa Vector{<:Real}
         splits = [[0.0, splits[i]] for i in eachindex(splits)]
     end
     if !(all(eltype.(splits) .<: Real) || all(eltype.(splits) .<: String) || all(eltype.(splits) .<: Symbol))
@@ -43,7 +43,7 @@ function _split(split_algorithm::SplitCustom, prob::PEtabODEProblem)
     if split_algorithm.mode == :time
         return _split_custom_time(prob, split_algorithm.splits, split_algorithm.nsplits)
     end
-    return _split_custom_conditions(prob, split_algorithm.splits, split_algorithm.nsplits)
+    return _split_custom_conditions(prob, split_algorithm.splits)
 end
 
 function _split_uniform_time(prob::PEtabODEProblem, nsplits::Integer)
@@ -109,14 +109,21 @@ function _split_uniform_conditions(prob::PEtabODEProblem, nsplits::Integer)
     end
 
     mdf = prob.model_info.model.petab_tables[:measurements]
-    conditions_stage = _makechunks(conditions_ids, nsplits)
-    out = Vector{Dict{Symbol, DataFrame}}(undef, nsplits)
-    for i in 1:nsplits
-        out[i] = copy(prob.model_info.model.petab_tables)
-        irow = findall(x -> x in conditions_stage[i], mdf.simulationConditionId)
-        out[i][:measurements] = mdf[irow, :]
+    splits = _makechunks(conditions_ids, nsplits)
+    _split_condition(splits, mdf, prob)
+end
+
+function _split_custom_conditions(prob::PEtabODEProblem, splits::Vector{<:Vector{T}}) where T<:Union{String, Symbol}
+    splits_conditions = reduce(vcat, splits) .|> string
+    conditions_ids = prob.model_info.simulation_info.conditionids[:simulation] .|> string
+    for cid in conditions_ids
+        cid in splits_conditions && continue
+        throw(ArgumentError("The simulation condition $cid which has been defined for \
+            the PEtab problem is not present in any of the custom condition curriculum \
+            splits provided"))
     end
-    return out
+    mdf = prob.model_info.model.petab_tables[:measurements]
+    _split_condition(splits, mdf, prob)
 end
 
 function _get_unique_timepoints(mdf::DataFrame)::Vector{Float64}
@@ -131,6 +138,16 @@ function _split_time(splits, mdf::DataFrame, prob::PEtabODEProblem)::Vector{Dict
         tmax = maximum(split)
         out[i] = copy(prob.model_info.model.petab_tables)
         out[i][:measurements] = mdf[mdf[!, :time] .≤ tmax, :]
+    end
+    return out
+end
+
+function _split_condition(splits, mdf::DataFrame, prob::PEtabODEProblem)::Vector{Dict{Symbol, DataFrame}}
+    out = Vector{Dict{Symbol, DataFrame}}(undef, length(splits))
+    for (i, split) in pairs(splits)
+        out[i] = copy(prob.model_info.model.petab_tables)
+        irow = findall(x -> x in split, mdf.simulationConditionId)
+        out[i][:measurements] = mdf[irow, :]
     end
     return out
 end
