@@ -17,6 +17,6 @@ include(joinpath(@__DIR__, "curriculum.jl"))
 include(joinpath(@__DIR__, "petab_model.jl"))
 include(joinpath(@__DIR__, "petab_odeproblem.jl"))
 
-export PEtabCurriculumProblem, SplitUniform
+export PEtabCurriculumProblem, SplitUniform, SplitCustom
 
 end

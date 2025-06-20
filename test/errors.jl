@@ -13,3 +13,17 @@ end
 @test_throws ArgumentError begin
     PEtabCurriculumProblem(petab_prob, SplitUniform(14; mode = :time))
 end
+
+# Custom splitting + curriculum
+model_id = "Boehm_JProteomeRes2014"
+path_yaml = joinpath(@__DIR__, "published_models", model_id, "$(model_id).yaml")
+petab_prob = PEtabModel(path_yaml) |> PEtabODEProblem
+@test_throws ArgumentError begin
+    PEtabCurriculumProblem(petab_prob, SplitCustom([3.0, 2.0, 4.0]))
+end
+@test_throws ArgumentError begin
+    PEtabCurriculumProblem(petab_prob, SplitCustom([3.0, 4.0, 250]))
+end
+@test_throws ArgumentError begin
+    PEtabCurriculumProblem(petab_prob, SplitCustom([3.0, 10.0, 230]))
+end

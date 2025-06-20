@@ -19,11 +19,23 @@ function test_split_uniform_time(model_id, n_stages)
     return nothing
 end
 
+function test_split_custom_time(model_id, splits)
+    path_yaml = joinpath(@__DIR__, "published_models", model_id, "$(model_id).yaml")
+    petab_prob = PEtabModel(path_yaml) |> PEtabODEProblem
+    stage_problems = PEtabCurriculumProblem(petab_prob, SplitCustom(splits))
+    mdf = petab_prob.model_info.model.petab_tables[:measurements]
+
+    for (i, max_val) in pairs(splits)
+        mdf_tmp = mdf[mdf[!, :time] .≤ max_val, :]
+        test_nllh(path_yaml, mdf, mdf_tmp, petab_prob, stage_problems.petab_problems[i])
+    end
+    return nothing
+end
+
 function test_split_uniform_conditions(model_id, n_stages)
     path_yaml = joinpath(@__DIR__, "published_models", model_id, "$(model_id).yaml")
     petab_prob = PEtabModel(path_yaml) |> PEtabODEProblem
-    stage_problems = PEtabCurriculumProblem(
-        petab_prob, SplitUniform(n_stages; mode = :condition))
+    stage_problems = PEtabCurriculumProblem(petab_prob, SplitUniform(n_stages; mode = :condition))
 
     mdf = petab_prob.model_info.model.petab_tables[:measurements]
     unique_conditions = mdf.simulationConditionId |> unique
@@ -50,6 +62,13 @@ end
     end
 end
 
+@testset "Uniform custom time" begin
+    splits_test = [[15.0, 20.0, 100.0, 240.0], [13.0, 25.0, 105.0, 250.0]]
+    for splits in splits_test
+        test_split_custom_time("Boehm_JProteomeRes2014", splits)
+    end
+end
+
 @testset "Uniform splitting conditions" begin
     for n_stages in [2]
         test_split_uniform_conditions("Weber_BMC2015", n_stages)
@@ -58,3 +77,10 @@ end
         test_split_uniform_conditions("Bachmann_MSB2011", n_stages)
     end
 end
+
+model_id = "Boehm_JProteomeRes2014"
+path_yaml = joinpath(@__DIR__, "published_models", model_id, "$(model_id).yaml")
+petab_prob = PEtabModel(path_yaml) |> PEtabODEProblem
+
+splits =
+stage_problems = PEtabCurriculumProblem(petab_prob, SplitCustom(splits))

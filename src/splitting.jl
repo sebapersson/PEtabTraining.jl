@@ -11,14 +11,25 @@ struct SplitCustom{T <: Union{AbstractFloat, String, Symbol}}
     mode::Symbol
     splits::Vector{Vector{T}}
 end
-function SplitCustom(splits::Vector{Vector})::SplitCustom
-    if !(all(eltype.(splits) isa Real) || all(eltype.(splits) isa String) || all(eltype.(splits) isa Symbol))
+function SplitCustom(splits::Union{Vector, Vector{<:Vector}})::SplitCustom
+    # For curriculum the only information that must be provided is the end time-point
+    # for each curriculum step. Internally, for a common interface, splits must be a
+    # Vector{Vector}.
+    if splits isa Vector
+        splits = [[0.0, splits[i]] for i in eachindex(splits)]
+    end
+    if !(all(eltype.(splits) .<: Real) || all(eltype.(splits) .<: String) || all(eltype.(splits) .<: Symbol))
         throw(ArgumentError("Provided splits must be a Vector{Vector} where the inner \
             Vector all are of the same type; either Vector{Real} if splitting on time, \
             or either Vector{String} or Vector{Symbol} if splitting on conditions"))
     end
+    for (i, split) in pairs(splits)
+        !isempty(split) && continue
+        throw(ArgumentError("Provided interval $i is empty. When providing custom \
+            splitting intervals no interval must be empty"))
+    end
     nsplits = length(splits)
-    mode = all(eltype.(splits) isa Real) ? :time : :condition
+    mode = all(eltype.(splits) .<: Real) ? :time : :condition
     return SplitCustom(nsplits, mode, splits)
 end
 
@@ -29,11 +40,6 @@ function _split(split_algorithm::SplitUniform, prob::PEtabODEProblem)
     return _split_uniform_conditions(prob, split_algorithm.nsplits)
 end
 function _split(split_algorithm::SplitCustom, prob::PEtabODEProblem)
-    for (i, split) in pairs(split_algorithm.splits)
-        isempty(split) && continue
-        throw(ArgumentError("Provided interval $i is empty. When providing custom \
-            splitting intervals no interval must be empty"))
-    end
     if split_algorithm.mode == :time
         return _split_custom_time(prob, split_algorithm.splits, split_algorithm.nsplits)
     end
@@ -54,30 +60,41 @@ function _split_uniform_time(prob::PEtabODEProblem, nsplits::Integer)
     return _split_time(splits, mdf, prob)
 end
 
-function _split_custom_time(prob::PEtabODEProblem, splits::Vector{Vector{<:Real}}, nsplits::Integer)
+function _split_custom_time(prob::PEtabODEProblem, splits::Vector{<:Vector{<:Real}}, nsplits::Integer)
     for i in 1:(nsplits - 1)
-        splits[i][end] == splits[i+1][1] && continue
-        throw(ArgumentError("When providing custom time-splitting intervals, the endpoint \
-            of interval i must have the same values as the starting point for interval \
-            [i+1]. This does not hold for i=$i; its end-point is $(splits[i][end]) and \
-            the starting point for interval $(i+1) is $(splits[i][1])"))
-    end
-    for split in splits
-        isorted(split) && continue
-        throw(ArgumentError("When providing custom time-splitting intervals, the \
-                the intervals must contain time-points in sorted order. This does not
-                hold for interval $i: $split"))
+        splits[i][end] < splits[i+1][end] && continue
+        throw(ArgumentError("When providing custom time-points for curriculum learning, \
+            end point for interval i+1 must be larger than for interval i. This does \
+            not hold for i=$i; its end-point is $(splits[i][end]) and the end point for \
+            i=$(i+1) is $(splits[i+1][end])"))
     end
     mdf = prob.model_info.model.petab_tables[:measurements]
     unique_t = _get_unique_timepoints(mdf)
-    for split in splits
-        if !isempty(intersect(unique_t .≥ minimum(split), unique_t .< maximum(split)))
+    n_time_points_included = 0
+    for (i, split) in pairs(splits)
+        tmax_split= maximum(split)
+        n_time_points_split = sum(unique_t .≤ tmax_split)
+        if n_time_points_split > n_time_points_included
+            n_time_points_included = n_time_points_split
             continue
         end
-        throw(ArgumentError("When providing custom time-splitting intervals, each \
-                time-interval must contain at least on time-point in the measurements \
-                table. This does not hold for interval $i: as in the measurement tables
-                no time-points lie in the interval [$(split[1]), $(split[end]))"))
+        if i == 1
+            throw(ArgumentError("When providing custom time-points for curriculum \
+                learning, each curriculum step i must include new measurements points. \
+                This does not hold for step $i. This means there are no measurement points \
+                in the measurement table between [0.0, $(tmax_split)]."))
+        end
+        tmax_prev = maximum(splits[i-1])
+        throw(ArgumentError("When providing custom time-points for curriculum \
+            learning, each curriculum step i must include new measurements points. \
+            This does not hold for step $i. This means there are no measurement points \
+            in the measurement table between ($(tmax_prev), $(tmax_split)]."))
+    end
+    if maximum(splits[end]) < maximum(unique_t)
+        throw(ArgumentError("When providing custom time-points for curriculum, the last \
+            stage must cover all measurements in the measurement table. This does not hold \
+            as the end-point time for the last interval is $(maximum(splits[end])) while \
+            the largest time-point in the measurements table is $(maximum(unique_t))."))
     end
     return _split_time(splits, mdf, prob)
 end
