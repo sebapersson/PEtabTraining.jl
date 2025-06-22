@@ -18,7 +18,8 @@ function SplitCustom(splits::Union{Vector, Vector{<:Vector}})::SplitCustom
     if splits isa Vector{<:Real}
         splits = [[0.0, splits[i]] for i in eachindex(splits)]
     end
-    if !(all(eltype.(splits) .<: Real) || all(eltype.(splits) .<: String) || all(eltype.(splits) .<: Symbol))
+    if !(all(eltype.(splits) .<: Real) || all(eltype.(splits) .<: String) ||
+         all(eltype.(splits) .<: Symbol))
         throw(ArgumentError("Provided splits must be a Vector{Vector} where the inner \
             Vector all are of the same type; either Vector{Real} if splitting on time, \
             or either Vector{String} or Vector{Symbol} if splitting on conditions"))
@@ -57,12 +58,13 @@ function _split_uniform_time(prob::PEtabODEProblem, nsplits::Integer)
         )
     end
     splits = _makechunks(unique_t, nsplits)
-    return _split_time(splits, mdf, prob)
+    return _split_time_curriculum(splits, mdf, prob)
 end
 
-function _split_custom_time(prob::PEtabODEProblem, splits::Vector{<:Vector{<:Real}}, nsplits::Integer)
+function _split_custom_time(
+        prob::PEtabODEProblem, splits::Vector{<:Vector{<:Real}}, nsplits::Integer)
     for i in 1:(nsplits - 1)
-        splits[i][end] < splits[i+1][end] && continue
+        splits[i][end] < splits[i + 1][end] && continue
         throw(ArgumentError("When providing custom time-points for curriculum learning, \
             end point for interval i+1 must be larger than for interval i. This does \
             not hold for i=$i; its end-point is $(splits[i][end]) and the end point for \
@@ -72,7 +74,7 @@ function _split_custom_time(prob::PEtabODEProblem, splits::Vector{<:Vector{<:Rea
     unique_t = _get_unique_timepoints(mdf)
     n_time_points_included = 0
     for (i, split) in pairs(splits)
-        tmax_split= maximum(split)
+        tmax_split = maximum(split)
         n_time_points_split = sum(unique_t .≤ tmax_split)
         if n_time_points_split > n_time_points_included
             n_time_points_included = n_time_points_split
@@ -84,7 +86,7 @@ function _split_custom_time(prob::PEtabODEProblem, splits::Vector{<:Vector{<:Rea
                 This does not hold for step $i. This means there are no measurement points \
                 in the measurement table between [0.0, $(tmax_split)]."))
         end
-        tmax_prev = maximum(splits[i-1])
+        tmax_prev = maximum(splits[i - 1])
         throw(ArgumentError("When providing custom time-points for curriculum \
             learning, each curriculum step i must include new measurements points. \
             This does not hold for step $i. This means there are no measurement points \
@@ -96,7 +98,7 @@ function _split_custom_time(prob::PEtabODEProblem, splits::Vector{<:Vector{<:Rea
             as the end-point time for the last interval is $(maximum(splits[end])) while \
             the largest time-point in the measurements table is $(maximum(unique_t))."))
     end
-    return _split_time(splits, mdf, prob)
+    return _split_time_curriculum(splits, mdf, prob)
 end
 
 function _split_uniform_conditions(prob::PEtabODEProblem, nsplits::Integer)
@@ -110,10 +112,11 @@ function _split_uniform_conditions(prob::PEtabODEProblem, nsplits::Integer)
 
     mdf = prob.model_info.model.petab_tables[:measurements]
     splits = _makechunks(conditions_ids, nsplits)
-    _split_condition(splits, mdf, prob)
+    _split_condition_curriculum(splits, mdf, prob)
 end
 
-function _split_custom_conditions(prob::PEtabODEProblem, splits::Vector{<:Vector{T}}) where T<:Union{String, Symbol}
+function _split_custom_conditions(prob::PEtabODEProblem,
+        splits::Vector{<:Vector{T}}) where {T <: Union{String, Symbol}}
     splits_conditions = reduce(vcat, splits) .|> string
     conditions_ids = prob.model_info.simulation_info.conditionids[:simulation] .|> string
     for cid in conditions_ids
@@ -123,31 +126,11 @@ function _split_custom_conditions(prob::PEtabODEProblem, splits::Vector{<:Vector
             splits provided"))
     end
     mdf = prob.model_info.model.petab_tables[:measurements]
-    _split_condition(splits, mdf, prob)
+    _split_condition_curriculum(splits, mdf, prob)
 end
 
 function _get_unique_timepoints(mdf::DataFrame)::Vector{Float64}
     return mdf.time |>
-        unique |>
-        sort
-end
-
-function _split_time(splits, mdf::DataFrame, prob::PEtabODEProblem)::Vector{Dict{Symbol, DataFrame}}
-    out = Vector{Dict{Symbol, DataFrame}}(undef, length(splits))
-    for (i, split) in pairs(splits)
-        tmax = maximum(split)
-        out[i] = copy(prob.model_info.model.petab_tables)
-        out[i][:measurements] = mdf[mdf[!, :time] .≤ tmax, :]
-    end
-    return out
-end
-
-function _split_condition(splits, mdf::DataFrame, prob::PEtabODEProblem)::Vector{Dict{Symbol, DataFrame}}
-    out = Vector{Dict{Symbol, DataFrame}}(undef, length(splits))
-    for (i, split) in pairs(splits)
-        out[i] = copy(prob.model_info.model.petab_tables)
-        irow = findall(x -> x in split, mdf.simulationConditionId)
-        out[i][:measurements] = mdf[irow, :]
-    end
-    return out
+           unique |>
+           sort
 end

@@ -2,16 +2,17 @@ function _PEtabODEProblem(
         model::PEtabModel, prob_original::PEtabODEProblem)::PEtabODEProblem
     @unpack (solver, solver_gradient, ss_solver, ss_solver_gradient, gradient_method,
     hessian_method, sensealg, reuse_sensitivities) = prob_original.probinfo
-    prob = PEtabODEProblem(model; odesolver = solver, odesolver_gradient = solver_gradient,
-        ss_solver = ss_solver, ss_solver_gradient = ss_solver_gradient,
-        gradient_method = gradient_method, hessian_method = hessian_method,
-        sensealg = sensealg, reuse_sensitivities = reuse_sensitivities)
+
     # Sometimes parameters only appear for a subset of splits, for example
     # observable-parameters associated with observables for a subset of conditions and/or
     # late time-points. This can change the order of prob.xnames compared to
     # prob_original.xnames. To avoid problems arising from this, the input for the
     # sub-problems is assumed to follow the order of prob_original, and internally
     # any input x is mapped to the correct order
+    prob = PEtabODEProblem(model; odesolver = solver, odesolver_gradient = solver_gradient,
+        ss_solver = ss_solver, ss_solver_gradient = ss_solver_gradient,
+        gradient_method = gradient_method, hessian_method = hessian_method,
+        sensealg = sensealg, reuse_sensitivities = reuse_sensitivities)
     prob_to_original = [findfirst(x -> x == name, prob.xnames)
                         for name in prob_original.xnames]
     original_to_prob = [findfirst(x -> x == name, prob_original.xnames)

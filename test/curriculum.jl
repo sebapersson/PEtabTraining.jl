@@ -35,7 +35,8 @@ end
 function test_split_uniform_conditions(model_id, n_stages)
     path_yaml = joinpath(@__DIR__, "published_models", model_id, "$(model_id).yaml")
     petab_prob = PEtabModel(path_yaml) |> PEtabODEProblem
-    stage_problems = PEtabCurriculumProblem(petab_prob, SplitUniform(n_stages; mode = :condition))
+    stage_problems = PEtabCurriculumProblem(
+        petab_prob, SplitUniform(n_stages; mode = :condition))
 
     mdf = petab_prob.model_info.model.petab_tables[:measurements]
     unique_conditions = mdf.simulationConditionId |> unique
@@ -98,8 +99,8 @@ end
         path_yaml = joinpath(@__DIR__, "published_models", model_id, "$(model_id).yaml")
         petab_prob = PEtabModel(path_yaml) |> PEtabODEProblem
         splits = [[:condition_step_00_1, :condition_step_00_3],
-                [:condition_step_01_0, :condition_step_03_0],
-                [:condition_step_10_0, :condition_step_30_0]]
+            [:condition_step_01_0, :condition_step_03_0],
+            [:condition_step_10_0, :condition_step_30_0]]
         splits_str = [string.(split) for split in splits]
         test_split_conditions_custom(model_id, splits)
         test_split_conditions_custom(model_id, splits_str)
