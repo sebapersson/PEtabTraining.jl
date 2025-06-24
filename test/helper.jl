@@ -20,3 +20,16 @@ function test_chunk_size(chunks)
         end
     end
 end
+
+function _get_prob_duplicated(prob::PEtabODEProblem, windows)
+    mdf = prob.model_info.model.petab_tables[:measurements]
+    mdf_duplicate = DataFrame()
+    for window in windows
+        irow = findall(x -> x ≥ minimum(window) && x ≤ maximum(window), mdf.time)
+        mdf_duplicate = vcat(mdf_duplicate, mdf[irow, :])
+    end
+    tables_duplicate = deepcopy(prob.model_info.model.petab_tables)
+    tables_duplicate[:measurements] = mdf_duplicate
+    model = PEtab._PEtabModel(prob.model_info.model.paths, tables_duplicate, false, false, true, false)
+    return PEtabODEProblem(model)
+end

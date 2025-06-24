@@ -34,20 +34,20 @@ function SplitCustom(splits::Union{Vector, Vector{<:Vector}})::SplitCustom
     return SplitCustom(nsplits, mode, splits)
 end
 
-function _split(split_algorithm::SplitUniform, prob::PEtabODEProblem)
+function _split(split_algorithm::SplitUniform, prob::PEtabODEProblem, method::Symbol)
     if split_algorithm.mode == :time
-        return _split_uniform_time(prob, split_algorithm.nsplits)
+        return _split_uniform_time(prob, split_algorithm.nsplits, method)
     end
     return _split_uniform_conditions(prob, split_algorithm.nsplits)
 end
-function _split(split_algorithm::SplitCustom, prob::PEtabODEProblem)
+function _split(split_algorithm::SplitCustom, prob::PEtabODEProblem, method::Symbol)
     if split_algorithm.mode == :time
         return _split_custom_time(prob, split_algorithm.splits, split_algorithm.nsplits)
     end
     return _split_custom_conditions(prob, split_algorithm.splits)
 end
 
-function _split_uniform_time(prob::PEtabODEProblem, nsplits::Integer)
+function _split_uniform_time(prob::PEtabODEProblem, nsplits::Integer, method::Symbol)
     mdf = prob.model_info.model.petab_tables[:measurements]
     unique_t = _get_unique_timepoints(mdf)
     if length(unique_t) < nsplits
@@ -57,8 +57,13 @@ function _split_uniform_time(prob::PEtabODEProblem, nsplits::Integer)
           time-points and nsplits=$(nsplits)."),
         )
     end
-    splits = _makechunks(unique_t, nsplits)
-    return _split_time_curriculum(splits, mdf, prob)
+    if method == :multiple_shooting
+        return _makechunks(unique_t, nsplits; overlap = 1)
+    else
+        # TODO: Fix so interface is consistent (prob should not appear here?)
+        splits = _makechunks(unique_t, nsplits; overlap = 0)
+        return _split_time_curriculum(splits, mdf, prob)
+    end
 end
 
 function _split_custom_time(

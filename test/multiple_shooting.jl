@@ -1,114 +1,87 @@
 using CSV, DataFrames, PEtab, PEtabTraining, Test
 
-# This is something that is implemented at the PEtab-level, adding a huge new bunch
-# of observables, parameters, and measurements in the measurements table and create
-# entirely new simulations conditions. Further, must allow PEtab.jl to set its own
-# start time, otherwise, events are not going to work.
-# Naturally, a question becomes, how to deal with initial conditions for the base
-# condition where the initial value might be an expression. The only natural way
-# to deal with this is via a NaN check, where if the parameter setting the initial
-# value is NaN, resorts the the SBML formula. This might cause gradient problems,
-# not really as we never need to compile a trace. Similar, for Julia interface
-# I do not really see any problem. The drawback, this will be a major pain
-# to implement.
+include(joinpath(@__DIR__, "helper.jl"))
 
-model_id = "Boehm_JProteomeRes2014"
-path_yaml = joinpath(@__DIR__, "published_models", model_id, "$(model_id).yaml")
-petab_prob = PEtabModel(path_yaml) |> PEtabODEProblem
-stage_problems = PEtabCurriculumProblem(petab_prob, SplitUniform(4))
+function test_multiple_shooting(model_id, n_windows)
+    path_yaml = joinpath(@__DIR__, "published_models", model_id, "$(model_id).yaml")
+    prob_original = PEtabModel(path_yaml) |> PEtabODEProblem
 
-mdf = petab_prob.model_info.model.petab_tables[:measurements]
-unique_t = PEtabTraining._get_unique_timepoints(mdf)
-splits = PEtabTraining._makechunks(unique_t, 4; overlap = 1)
-model = petab_prob.model_info.model
-speciemap = model.speciemap
-specie_ids = replace.(string.(first.(speciemap)), ("(t)") => "")
-conditions_df, parameters_df = copy(model.petab_tables[:conditions]),
-copy(model.petab_tables[:parameters])
+    prob = PEtabMultipleShootingProblem(prob_original, SplitUniform(n_windows))
+    a = 1
+    mdf_original = prob_original.model_info.model.petab_tables[:measurements]
+    mdf_ms = prob.petab_prob_ms.model_info.model.petab_tables[:measurements]
 
-# The first window is special, because each parameter already has an initial value
-for (i, specie_id) in pairs(specie_ids)
-    specie_id in names(conditions_df) && continue
-    for (j, cid) in pairs(conditions_df.conditionId)
-        # If initial value is an equation expression. In this case NaN must be set to
-        # ensure the SBML formula is used for initial value computation
-        u0_value = string(speciemap[i].second)
-        if !(PEtab.is_number(u0_value) || u0_value in parameters_df.parameterId)
-            u0_value = "NaN"
-        end
-        if specie_id in names(conditions_df)
-            conditions_df[j, specie_id] = u0_value
+    # Check each window has correct start and end time-points. Note, the last measurement
+    # point for a condition might appear in the middle of a window.
+    unique_t = PEtabTraining._get_unique_timepoints(mdf_original)
+    windows = PEtabTraining._makechunks(unique_t, n_windows; overlap = 1)
+    cids = prob.petab_prob_ms.model_info.model.petab_tables[:conditions].conditionId |> unique
+    for cid in cids
+        window_index = PEtabTraining._get_index_from_window_id(cid)
+        t_min = minimum(windows[window_index])
+        t_max = mdf_ms[mdf_ms[!, :simulationConditionId] .== cid, :].time |> maximum
+        @test t_min == prob.petab_prob_ms.model_info.simulation_info.tstarts[Symbol(cid)]
+        @test t_max == prob.petab_prob_ms.model_info.simulation_info.tmaxs[Symbol(cid)]
+    end
+
+    # Check each window has correct number of measurement points. As each window starts and
+    # ends at data-points, these data-points should be double-counted (hence the ≥), and
+    # each penalty gets a data-point, unless a condition does not have data-points for
+    # the next window
+    n_species = length(prob_original.model_info.model.speciemap)
+    for cid in cids
+        window_index = PEtabTraining._get_index_from_window_id(cid)
+        tmin, tmax = minimum(windows[window_index]), maximum(windows[window_index])
+        cid_original = PEtabTraining._get_cid_from_window_id(cid)
+        m_cid_df_ms = mdf_ms[mdf_ms[!, :simulationConditionId] .== cid, :]
+        m_cid_df_original = mdf_original[findall(x -> x ≥ tmin && x ≤ tmax, mdf_original.time), :]
+        m_cid_df_original = m_cid_df_original[m_cid_df_original[!, :simulationConditionId] .== cid_original, :]
+        next_cid = replace(cid, "__window$(window_index)_" => "__window$(window_index+1)_")
+        if next_cid in cids
+            @test nrow(m_cid_df_ms) == nrow(m_cid_df_original) + n_species
         else
-            conditions_df[!, specie_id] .= u0_value
+            @test nrow(m_cid_df_ms) == nrow(m_cid_df_original)
         end
     end
-end
 
-observable_df = copy(model.petab_tables[:observables])
-measurements_df = copy(model.petab_tables[:measurements])
-# Initial values for each window must be added as parameters, window penalty must be
-# added as observables + measurement points, and this must be done for each condition
-cids = deepcopy(conditions_df.conditionId)
-for _cid in cids
-    for i in 2:length(splits)
-        cid = "__window$(i)_$(_cid)__"
-        df_c = conditions_df[conditions_df.conditionId .== _cid, :] |> copy
-        df_c[1, :conditionId] = cid
-        for specie_id in specie_ids
-            pid = "__window$(i)_$(_cid)__$(specie_id)"
-            obs_id = "__window$(i)_obs_$(_cid)__$(specie_id)"
-
-            # Set parameters
-            df_ps = DataFrame(parameterId = pid, parameterScale = "lin", lowerBound = 0.0,
-                upperBound = Inf, nominalValue = 0.0, estimate = 1)
-            if "parameterName" in names(parameters_df)
-                df_ps[!, :parameterName] .= missing
-            end
-            parameters_df = vcat(parameters_df, df_ps)
-
-            # Assign initial value to parameter value via conditions table
-            df_c[1, specie_id] = pid
-
-            # Setup observables. Multiple window penalty is given by lambda_sqrt as the
-            # parameter will be squared during the likelihood computations.
-            df_obs = DataFrame(observableId = obs_id,
-                observableFormula = "lambda_sqrt * ($(specie_id) - $(obs_id))",
-                noiseFormula = "1.0",
-                observableTransformation = "lin", noiseDistribution = "normal")
-            if "observableName" in names(observable_df)
-                df_obs[!, :observableName] .= missing
-            end
-            observable_df = vcat(observable_df, df_obs)
-
-            # Add in the measurement table the penalty. Given the observable formula above,
-            # the measurement value is set to zero, only fulfilled upon merging.
-            df_m = DataFrame(observableId = obs_id, simulationConditionId = cid,
-                measurement = 0.0, time = maximum(splits[i]))
-            if "preequilibrationConditionId" in names(measurements_df)
-                df_m[!, :preequilibrationConditionId] .= missing
-            end
-            if "observableParameters" in names(measurements_df)
-                df_m[!, :observableParameters] .= missing
-            end
-            if "noiseParameters" in names(measurements_df)
-                df_m[!, :noiseParameters] .= missing
-            end
-            if "datasetId" in names(measurements_df)
-                df_m[!, :datasetId] .= missing
-            end
-            measurements_df = vcat(measurements_df, df_m)
-        end
-        conditions_df = vcat(conditions_df, df_c)
+    # Check the initial value parameters for each window can get properly set
+    # Constant value
+    xnames_u0 = PEtabTraining._get_ms_u0_xnames(prob)
+    PEtabTraining.set_u0_windows!(prob, 4.0)
+    @test all(prob.petab_prob_ms.xnominal[xnames_u0] .== 4.0)
+    @test all(prob.petab_prob_ms.xnominal_transformed[xnames_u0] .== 4.0)
+    # Initial values for the first window
+    x_original = get_x(prob.original)
+    PEtabTraining.set_u0_windows!(prob, x_original, :window1_u0)
+    x_ms = get_x(prob.petab_prob_ms)
+    for cid in cids
+        cid_original = PEtabTraining._get_cid_from_window_id(cid)
+        u0_original = PEtab.get_u0(x_original, prob.original; retmap = false, cid = cid_original)
+        u0_ms = PEtab.get_u0(x_ms, prob.petab_prob_ms; retmap = false, cid = cid)
+        @test u0_ms == u0_original
     end
+    # Values from simulating initial values.
+    # Easiest to check comparing the likelihood between original and ms problem, where for the
+    # original problem, only difference is that duplicated points must be added. Note, due
+    # to penalty entering via a likelihood, 0.5 * log(2π) must be accounted for.
+    PEtabTraining.set_u0_windows!(prob, x_original, :window1_simulate)
+    prob_duplicated = _get_prob_duplicated(prob.original, windows)
+    nllh_ms = prob.petab_prob_ms.nllh(get_x(prob.petab_prob_ms))
+    nllh_ms -= 0.5 * log(2π) * length(xnames_u0)
+    nllh_duplicated = prob_duplicated.nllh(get_x(prob_duplicated))
+    @test nllh_ms ≈ nllh_duplicated atol=1e-3
+    return nothing
 end
-df_ps = DataFrame(parameterId = "lambda_sqrt", parameterScale = "lin", lowerBound = 0.0,
-    upperBound = Inf, nominalValue = 1.0, estimate = 0)
-if "parameterName" in names(parameters_df)
-    df_ps[!, :parameterName] .= missing
-end
-parameters_df = vcat(parameters_df, df_ps)
 
-# Next step. In PEtab.jl add:
-#   1. Ability to set t0 for a condition. Will be added to SimulationInfo, and will be manipulated by PEtabTraining.
-#   2. Handling of NaN for a non pre-eq. Discussed above, will need to implement an if statement
-#   3. Lower level interface of _PEtabModel taking the tables as input. Will remove a lot of code from here.
+@testset "Multiple shooting" begin
+    for n_windows in [2, 3, 5]
+        test_multiple_shooting("Boehm_JProteomeRes2014", n_windows)
+    end
+    for n_windows in [2, 4]
+        test_multiple_shooting("Fujita_SciSignal2010", n_windows)
+    end
+    # Test more windows is very heavy on RAM, due to huge number of parameters added
+    test_multiple_shooting("Bachmann_MSB2011", 2)
+end
+
+# TODO: Error check pre-eq models not allowed
