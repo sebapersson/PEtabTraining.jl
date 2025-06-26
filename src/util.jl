@@ -56,7 +56,8 @@ end
 
 function _transform_x!(prob::PEtabMultipleShootingProblem)::Nothing
     @unpack xnominal, xnominal_transformed, xnames, model_info = prob.petab_prob_ms
-    @views xnominal_transformed .= PEtab.transform_x(xnominal, xnames, model_info.xindices; to_xscale = true)
+    @views xnominal_transformed .= PEtab.transform_x(xnominal, xnames, model_info.xindices;
+        to_xscale = true)
     return nothing
 end
 

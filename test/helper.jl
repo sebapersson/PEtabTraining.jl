@@ -30,6 +30,7 @@ function _get_prob_duplicated(prob::PEtabODEProblem, windows)
     end
     tables_duplicate = deepcopy(prob.model_info.model.petab_tables)
     tables_duplicate[:measurements] = mdf_duplicate
-    model = PEtab._PEtabModel(prob.model_info.model.paths, tables_duplicate, false, false, true, false)
+    model = PEtab._PEtabModel(
+        prob.model_info.model.paths, tables_duplicate, false, false, true, false)
     return PEtabODEProblem(model)
 end

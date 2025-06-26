@@ -14,8 +14,8 @@ function _get_specie_ids(prob::PEtabODEProblem)
 end
 function _get_specie_ids(speciemap)
     specie_ids = speciemap .|>
-        first .|>
-        string
+                 first .|>
+                 string
     specie_ids = replace.(specie_ids, "(t)" => "")
     return specie_ids
 end

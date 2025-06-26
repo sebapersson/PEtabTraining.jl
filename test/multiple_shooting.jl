@@ -2,20 +2,36 @@ using CSV, DataFrames, PEtab, PEtabTraining, Test
 
 include(joinpath(@__DIR__, "helper.jl"))
 
-function test_multiple_shooting(model_id, n_windows)
+function test_multiple_shooting(model_id, n_windows::Integer)
+    split_algorithm = SplitUniform(n_windows)
+    _test_multiple_shooting(model_id, split_algorithm)
+    return nothing
+end
+function test_multiple_shooting(model_id, windows::Vector)
+    split_algorithm = SplitCustom(windows)
+    _test_multiple_shooting(model_id, split_algorithm)
+    return nothing
+end
+
+function _test_multiple_shooting(model_id, split_algorithm)
     path_yaml = joinpath(@__DIR__, "published_models", model_id, "$(model_id).yaml")
     prob_original = PEtabModel(path_yaml) |> PEtabODEProblem
 
-    prob = PEtabMultipleShootingProblem(prob_original, SplitUniform(n_windows))
-    a = 1
+    prob = PEtabMultipleShootingProblem(prob_original, split_algorithm)
+
     mdf_original = prob_original.model_info.model.petab_tables[:measurements]
     mdf_ms = prob.petab_prob_ms.model_info.model.petab_tables[:measurements]
 
     # Check each window has correct start and end time-points. Note, the last measurement
     # point for a condition might appear in the middle of a window.
     unique_t = PEtabTraining._get_unique_timepoints(mdf_original)
-    windows = PEtabTraining._makechunks(unique_t, n_windows; overlap = 1)
-    cids = prob.petab_prob_ms.model_info.model.petab_tables[:conditions].conditionId |> unique
+    if split_algorithm isa SplitUniform
+        windows = PEtabTraining._makechunks(unique_t, split_algorithm.nsplits; overlap = 1)
+    else
+        windows = split_algorithm.splits
+    end
+    cids = prob.petab_prob_ms.model_info.model.petab_tables[:conditions].conditionId |>
+           unique
     for cid in cids
         window_index = PEtabTraining._get_index_from_window_id(cid)
         t_min = minimum(windows[window_index])
@@ -34,8 +50,10 @@ function test_multiple_shooting(model_id, n_windows)
         tmin, tmax = minimum(windows[window_index]), maximum(windows[window_index])
         cid_original = PEtabTraining._get_cid_from_window_id(cid)
         m_cid_df_ms = mdf_ms[mdf_ms[!, :simulationConditionId] .== cid, :]
-        m_cid_df_original = mdf_original[findall(x -> x ≥ tmin && x ≤ tmax, mdf_original.time), :]
-        m_cid_df_original = m_cid_df_original[m_cid_df_original[!, :simulationConditionId] .== cid_original, :]
+        m_cid_df_original = mdf_original[
+            findall(x -> x ≥ tmin && x ≤ tmax, mdf_original.time), :]
+        m_cid_df_original = m_cid_df_original[
+            m_cid_df_original[!, :simulationConditionId] .== cid_original, :]
         next_cid = replace(cid, "__window$(window_index)_" => "__window$(window_index+1)_")
         if next_cid in cids
             @test nrow(m_cid_df_ms) == nrow(m_cid_df_original) + n_species
@@ -56,7 +74,8 @@ function test_multiple_shooting(model_id, n_windows)
     x_ms = get_x(prob.petab_prob_ms)
     for cid in cids
         cid_original = PEtabTraining._get_cid_from_window_id(cid)
-        u0_original = PEtab.get_u0(x_original, prob.original; retmap = false, cid = cid_original)
+        u0_original = PEtab.get_u0(
+            x_original, prob.original; retmap = false, cid = cid_original)
         u0_ms = PEtab.get_u0(x_ms, prob.petab_prob_ms; retmap = false, cid = cid)
         @test u0_ms == u0_original
     end
@@ -69,7 +88,7 @@ function test_multiple_shooting(model_id, n_windows)
     nllh_ms = prob.petab_prob_ms.nllh(get_x(prob.petab_prob_ms))
     nllh_ms -= 0.5 * log(2π) * length(xnames_u0)
     nllh_duplicated = prob_duplicated.nllh(get_x(prob_duplicated))
-    @test nllh_ms ≈ nllh_duplicated atol=1e-3
+    @test nllh_ms≈nllh_duplicated atol=1e-3
     return nothing
 end
 
@@ -77,6 +96,11 @@ end
     for n_windows in [2, 3, 5]
         test_multiple_shooting("Boehm_JProteomeRes2014", n_windows)
     end
+    splits_test = [[15.0, 40.0, 100.0, 240.0], [13.0, 25.0, 105.0, 250.0]]
+    for split in splits_test
+        test_multiple_shooting("Boehm_JProteomeRes2014", split)
+    end
+
     for n_windows in [2, 4]
         test_multiple_shooting("Fujita_SciSignal2010", n_windows)
     end

@@ -4,7 +4,8 @@ mutable struct PEtabMultipleShootingProblem
     const petab_prob_ms::PEtabODEProblem
     const original::PEtabODEProblem
 end
-function PEtabMultipleShootingProblem(prob_original::PEtabODEProblem, split_algorithm)::PEtabMultipleShootingProblem
+function PEtabMultipleShootingProblem(
+        prob_original::PEtabODEProblem, split_algorithm)::PEtabMultipleShootingProblem
     windows = _split(split_algorithm, prob_original, :multiple_shooting)
     petab_tables_ms = deepcopy(prob_original.model_info.model.petab_tables)
 
@@ -14,7 +15,8 @@ function PEtabMultipleShootingProblem(prob_original::PEtabODEProblem, split_algo
 
     # The first window is special, because each parameter already has an initial value,
     # which must be assigned in the condition table.
-    PEtabTraining._add_first_window!(petab_tables_ms, condition_df_original, windows[1], speciemap)
+    PEtabTraining._add_first_window!(
+        petab_tables_ms, condition_df_original, windows[1], speciemap)
 
     # Initial values for each window must be added as parameters, window penalty must be
     # added as observables + measurement points, and this must be done for each condition
@@ -27,10 +29,15 @@ function PEtabMultipleShootingProblem(prob_original::PEtabODEProblem, split_algo
     # subsequent PEtabODEProblem. In the PEtabODEProblem simulationInfo.tstarts must be
     # altered, to ensure that each simulations starts from the correct time-point to properly
     # handle any model events.
-    model_ms = PEtab._PEtabModel(prob_original.model_info.model.paths, petab_tables_ms, false, false, true, false)
+    model_ms = PEtab._PEtabModel(
+        prob_original.model_info.model.paths, petab_tables_ms, false, false, true, false)
 
     @unpack (solver, solver_gradient, ss_solver, ss_solver_gradient, gradient_method, hessian_method, sensealg, reuse_sensitivities) = prob_original.probinfo
-    petab_prob_ms = PEtabODEProblem(model_ms; odesolver=solver, odesolver_gradient=solver_gradient, ss_solver=ss_solver, ss_solver_gradient=ss_solver_gradient, gradient_method=gradient_method, hessian_method=hessian_method, sensealg=sensealg, reuse_sensitivities=reuse_sensitivities)
+    petab_prob_ms = PEtabODEProblem(
+        model_ms; odesolver = solver, odesolver_gradient = solver_gradient,
+        ss_solver = ss_solver, ss_solver_gradient = ss_solver_gradient,
+        gradient_method = gradient_method, hessian_method = hessian_method,
+        sensealg = sensealg, reuse_sensitivities = reuse_sensitivities)
     # Set u0 values for each condition
     for cid in string.(petab_prob_ms.model_info.simulation_info.conditionids[:experiment])
         !occursin("__window", cid) && continue
@@ -41,7 +48,9 @@ function PEtabMultipleShootingProblem(prob_original::PEtabODEProblem, split_algo
     return PEtabMultipleShootingProblem(split_algorithm, 1.0, petab_prob_ms, prob_original)
 end
 
-function _add_first_window!(petab_tables::Dict{Symbol, DataFrame}, condition_df_original::DataFrame, window::Vector{<:Real}, speciemap::Vector)::Nothing
+function _add_first_window!(
+        petab_tables::Dict{Symbol, DataFrame}, condition_df_original::DataFrame,
+        window::Vector{<:Real}, speciemap::Vector)::Nothing
     specie_ids = _get_specie_ids(speciemap)
     conditions_df = petab_tables[:conditions]
     parameters_df = petab_tables[:parameters]
@@ -64,7 +73,8 @@ function _add_first_window!(petab_tables::Dict{Symbol, DataFrame}, condition_df_
     end
 
     for cid in condition_df_original.conditionId
-        _add_overlap_windows!(petab_tables, cid, condition_df_original, window, 1, specie_ids)
+        _add_overlap_windows!(
+            petab_tables, cid, condition_df_original, window, 1, specie_ids)
     end
 
     # Rename conditions to make it explicit which condition refers to the first window
@@ -78,13 +88,16 @@ function _add_first_window!(petab_tables::Dict{Symbol, DataFrame}, condition_df_
     return nothing
 end
 
-function _add_windows!(petab_tables::Dict{Symbol, DataFrame}, condition_df_original::DataFrame, speciemap::Vector, windows::Vector{<:Vector{<:Real}})::Nothing
+function _add_windows!(
+        petab_tables::Dict{Symbol, DataFrame}, condition_df_original::DataFrame,
+        speciemap::Vector, windows::Vector{<:Vector{<:Real}})::Nothing
     specie_ids = _get_specie_ids(speciemap)
     for i in 2:length(windows)
         for cid in condition_df_original.conditionId
             i == length(windows) && continue
             window = windows[i]
-            _add_overlap_windows!(petab_tables, cid, condition_df_original, window, i, specie_ids)
+            _add_overlap_windows!(
+                petab_tables, cid, condition_df_original, window, i, specie_ids)
         end
         _update_measurements!(petab_tables, condition_df_original, windows[i], i)
     end
@@ -93,13 +106,16 @@ end
 
 function _add_window_penalty_parameter!(petab_tables::Dict{Symbol, DataFrame})::Nothing
     parameters_df = petab_tables[:parameters]
-    df_ps = DataFrame(parameterId = "lambda_sqrt", parameterScale = "lin", lowerBound = 0.0,
+    df_ps = DataFrame(
+        parameterId = "lambda_sqrt", parameterScale = "lin", lowerBound = 0.0,
         upperBound = Inf, nominalValue = 1.0, estimate = 0)
-    append!(parameters_df, df_ps; promote=true, cols = :subset)
+    append!(parameters_df, df_ps; promote = true, cols = :subset)
     return nothing
 end
 
-function _add_overlap_windows!(petab_tables::Dict{Symbol, DataFrame}, cid::String, condition_df_original::DataFrame, window::Vector{<:Real}, window_index::Integer, specie_ids::Vector{String})::Nothing
+function _add_overlap_windows!(petab_tables::Dict{Symbol, DataFrame}, cid::String,
+        condition_df_original::DataFrame, window::Vector{<:Real},
+        window_index::Integer, specie_ids::Vector{String})::Nothing
     # If the condition does not have any measurements for time >maximum(window), no new
     # parameters need to be added, as the model should not be simulated past the window
     measurements_df = petab_tables[:measurements]
@@ -119,8 +135,9 @@ function _add_overlap_windows!(petab_tables::Dict{Symbol, DataFrame}, cid::Strin
     for specie_id in specie_ids
         # Set initial value parameters
         pid = _get_window_id(cid, window_index, specie_id, :parameter)
-        df_ps = DataFrame(parameterId = pid, parameterScale = "lin", lowerBound = 0.0, upperBound = Inf, nominalValue = 1e-3, estimate = 1)
-        append!(parameters_df, df_ps; promote=true, cols = :subset)
+        df_ps = DataFrame(parameterId = pid, parameterScale = "lin", lowerBound = 0.0,
+            upperBound = Inf, nominalValue = 1e-3, estimate = 1)
+        append!(parameters_df, df_ps; promote = true, cols = :subset)
 
         # Assign initial value to parameter value via conditions table
         if specie_id in names(df_c)
@@ -132,21 +149,27 @@ function _add_overlap_windows!(petab_tables::Dict{Symbol, DataFrame}, cid::Strin
         # Setup observables. Multiple window penalty is given by lambda_sqrt as the
         # parameter will be squared during the likelihood computations.
         obs_id = _get_window_id(cid, window_index, specie_id, :observable)
-        df_obs = DataFrame(observableId = obs_id, observableFormula = "lambda_sqrt * ($(specie_id) - $(pid))", noiseFormula = "1.0", observableTransformation = "lin", noiseDistribution = "normal")
+        df_obs = DataFrame(observableId = obs_id,
+            observableFormula = "lambda_sqrt * ($(specie_id) - $(pid))",
+            noiseFormula = "1.0", observableTransformation = "lin",
+            noiseDistribution = "normal")
         append!(observable_df, df_obs, cols = :subset)
 
         # Add in the measurement table the penalty. Given the observable formula above,
         # the measurement value is set to zero. The different cid is needed, as the penalty
         # should be computed using the simulation from the preceding simulation.
         _cid_m = _get_window_id(cid, window_index, "", :condition)
-        df_m = DataFrame(observableId = obs_id, simulationConditionId = _cid_m, measurement = 0.0, time = maximum(window))
+        df_m = DataFrame(observableId = obs_id, simulationConditionId = _cid_m,
+            measurement = 0.0, time = maximum(window))
         append!(measurements_df, df_m, cols = :subset)
     end
     append!(conditions_df, df_c)
     return nothing
 end
 
-function _update_measurements!(petab_tables::Dict{Symbol, DataFrame}, condition_df_original::DataFrame, window::Vector{<:Real}, window_index::Integer)::Nothing
+function _update_measurements!(
+        petab_tables::Dict{Symbol, DataFrame}, condition_df_original::DataFrame,
+        window::Vector{<:Real}, window_index::Integer)::Nothing
     # Measurements can occur at the edge of a window, in this case observations must be
     # double counted in the measurement table and appear for the condition in the next
     # windows.
@@ -171,7 +194,8 @@ function _update_measurements!(petab_tables::Dict{Symbol, DataFrame}, condition_
     return nothing
 end
 
-function _get_window_id(cid::String, window_index::Integer, specie_id::String, which::Symbol)::String
+function _get_window_id(
+        cid::String, window_index::Integer, specie_id::String, which::Symbol)::String
     @assert which in [:condition, :parameter, :observable]
     if which == :condition
         return "__window$(window_index)_$(cid)__"
