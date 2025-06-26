@@ -40,3 +40,26 @@ end
         [:condition_step_01_0, :condition_step_03_0], Symbol[]]
     SplitCustom(splits)
 end
+
+# Multiple shooting unique errors
+model_id = "Boehm_JProteomeRes2014"
+path_yaml = joinpath(@__DIR__, "published_models", model_id, "$(model_id).yaml")
+petab_prob = PEtabModel(path_yaml) |> PEtabODEProblem
+@test_throws ArgumentError begin
+    PEtabMultipleShootingProblem(petab_prob, SplitUniform(4; mode = :condition))
+end
+model_id = "Fujita_SciSignal2010"
+path_yaml = joinpath(@__DIR__, "published_models", model_id, "$(model_id).yaml")
+petab_prob = PEtabModel(path_yaml) |> PEtabODEProblem
+splits = [[:condition_step_00_1, :condition_step_00_3],
+    [:condition_step_01_0, :condition_step_03_0],
+    [:condition_step_10_0, :condition_step_30_0]]
+@test_throws ArgumentError begin
+    PEtabMultipleShootingProblem(petab_prob, SplitCustom(splits))
+end
+model_id = "Weber_BMC2015"
+path_yaml = joinpath(@__DIR__, "published_models", model_id, "$(model_id).yaml")
+petab_prob = PEtabModel(path_yaml) |> PEtabODEProblem
+@test_throws ArgumentError begin
+    PEtabMultipleShootingProblem(petab_prob, SplitUniform(4))
+end

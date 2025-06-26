@@ -4,8 +4,12 @@ mutable struct PEtabMultipleShootingProblem
     const petab_prob_ms::PEtabODEProblem
     const original::PEtabODEProblem
 end
-function PEtabMultipleShootingProblem(
-        prob_original::PEtabODEProblem, split_algorithm)::PEtabMultipleShootingProblem
+function PEtabMultipleShootingProblem(prob_original::PEtabODEProblem,
+        split_algorithm)::PEtabMultipleShootingProblem
+    if prob_original.model_info.simulation_info.has_pre_equilibration
+        throw(ArgumentError("Multiple shooting is not supported for models with \
+            pre-equilibration simulation conditions."))
+    end
     windows = _split(split_algorithm, prob_original, :multiple_shooting)
     petab_tables_ms = deepcopy(prob_original.model_info.model.petab_tables)
 

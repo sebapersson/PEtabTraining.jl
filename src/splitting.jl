@@ -38,12 +38,20 @@ function _split(split_algorithm::SplitUniform, prob::PEtabODEProblem, method::Sy
     if split_algorithm.mode == :time
         return _split_uniform_time(prob, split_algorithm.nsplits, method)
     end
+    if method == :multiple_shooting
+        throw(ArgumentError("For multiple shotting, splitting windows over conditions \
+            (mode = :condition) is not allowed."))
+    end
     return _split_uniform_conditions(prob, split_algorithm.nsplits)
 end
 function _split(split_algorithm::SplitCustom, prob::PEtabODEProblem, method::Symbol)
     if split_algorithm.mode == :time
-        return _split_custom_time(
-            prob, split_algorithm.splits, split_algorithm.nsplits, method::Symbol)
+        return _split_custom_time(prob, split_algorithm.splits, split_algorithm.nsplits,
+            method::Symbol)
+    end
+    if method == :multiple_shooting
+        throw(ArgumentError("For multiple shotting, splitting windows over conditions \
+            (mode = :condition) is not allowed."))
     end
     return _split_custom_conditions(prob, split_algorithm.splits)
 end
@@ -61,7 +69,6 @@ function _split_uniform_time(prob::PEtabODEProblem, nsplits::Integer, method::Sy
     if method == :multiple_shooting
         return _makechunks(unique_t, nsplits; overlap = 1)
     else
-        # TODO: Fix so interface is consistent (prob should not appear here?)
         splits = _makechunks(unique_t, nsplits; overlap = 0)
         return _split_time_curriculum(splits, mdf, prob)
     end
