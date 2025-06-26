@@ -20,6 +20,14 @@ function set_u0_windows!(prob::PEtabMultipleShootingProblem, x, method::Symbol):
     return nothing
 end
 
+function set_window_penalty!(prob::PEtabMultipleShootingProblem, x::Real)::Nothing
+    @argcheck x≥0 "Multiple shooting window penalty parameter must be ≥0"
+    petab_parameters = prob.petab_prob_ms.model_info.petab_parameters
+    ix = findfirst(x -> x == :lambda_sqrt, petab_parameters.parameter_id)
+    petab_parameters.nominal_value[ix] = sqrt(x)
+    return nothing
+end
+
 function _set_u0_windows_window1_u0(prob::PEtabMultipleShootingProblem, x)::Nothing
     @unpack original, petab_prob_ms = prob
     specie_ids = _get_specie_ids(original)

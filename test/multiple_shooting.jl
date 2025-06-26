@@ -79,6 +79,13 @@ function _test_multiple_shooting(model_id, split_algorithm)
         u0_ms = PEtab.get_u0(x_ms, prob.petab_prob_ms; retmap = false, cid = cid)
         @test u0_ms == u0_original
     end
+    # Test effect changing penalty parameter
+    nllh1 = prob.petab_prob_ms.nllh(x_ms)
+    PEtabTraining.set_window_penalty!(prob, 2.0)
+    nllh2 = prob.petab_prob_ms.nllh(x_ms)
+    @test nllh1 != nllh2
+    @test prob.petab_prob_ms.model_info.petab_parameters.nominal_value[end] ≈ √2
+
     # Values from simulating initial values.
     # Easiest to check comparing the likelihood between original and ms problem, where for the
     # original problem, only difference is that duplicated points must be added. Note, due
@@ -107,5 +114,3 @@ end
     # Test more windows is very heavy on RAM, due to huge number of parameters added
     test_multiple_shooting("Bachmann_MSB2011", 2)
 end
-
-# TODO: Error check pre-eq models not allowed
