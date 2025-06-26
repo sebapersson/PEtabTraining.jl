@@ -34,20 +34,29 @@ function SplitCustom(splits::Union{Vector, Vector{<:Vector}})::SplitCustom
     return SplitCustom(nsplits, mode, splits)
 end
 
-function _split(split_algorithm::SplitUniform, prob::PEtabODEProblem)
+function _split(split_algorithm::SplitUniform, prob::PEtabODEProblem, method::Symbol)
     if split_algorithm.mode == :time
-        return _split_uniform_time(prob, split_algorithm.nsplits)
+        return _split_uniform_time(prob, split_algorithm.nsplits, method)
+    end
+    if method == :multiple_shooting
+        throw(ArgumentError("For multiple shotting, splitting windows over conditions \
+            (mode = :condition) is not allowed."))
     end
     return _split_uniform_conditions(prob, split_algorithm.nsplits)
 end
-function _split(split_algorithm::SplitCustom, prob::PEtabODEProblem)
+function _split(split_algorithm::SplitCustom, prob::PEtabODEProblem, method::Symbol)
     if split_algorithm.mode == :time
-        return _split_custom_time(prob, split_algorithm.splits, split_algorithm.nsplits)
+        return _split_custom_time(prob, split_algorithm.splits, split_algorithm.nsplits,
+            method::Symbol)
+    end
+    if method == :multiple_shooting
+        throw(ArgumentError("For multiple shotting, splitting windows over conditions \
+            (mode = :condition) is not allowed."))
     end
     return _split_custom_conditions(prob, split_algorithm.splits)
 end
 
-function _split_uniform_time(prob::PEtabODEProblem, nsplits::Integer)
+function _split_uniform_time(prob::PEtabODEProblem, nsplits::Integer, method::Symbol)
     mdf = prob.model_info.model.petab_tables[:measurements]
     unique_t = _get_unique_timepoints(mdf)
     if length(unique_t) < nsplits
@@ -57,18 +66,22 @@ function _split_uniform_time(prob::PEtabODEProblem, nsplits::Integer)
           time-points and nsplits=$(nsplits)."),
         )
     end
-    splits = _makechunks(unique_t, nsplits)
-    return _split_time_curriculum(splits, mdf, prob)
+    if method == :multiple_shooting
+        return _makechunks(unique_t, nsplits; overlap = 1)
+    else
+        splits = _makechunks(unique_t, nsplits; overlap = 0)
+        return _split_time_curriculum(splits, mdf, prob)
+    end
 end
 
-function _split_custom_time(
-        prob::PEtabODEProblem, splits::Vector{<:Vector{<:Real}}, nsplits::Integer)
+function _split_custom_time(prob::PEtabODEProblem, splits::Vector{<:Vector{<:Real}},
+        nsplits::Integer, method::Symbol)
     for i in 1:(nsplits - 1)
         splits[i][end] < splits[i + 1][end] && continue
-        throw(ArgumentError("When providing custom time-points for curriculum learning, \
-            end point for interval i+1 must be larger than for interval i. This does \
-            not hold for i=$i; its end-point is $(splits[i][end]) and the end point for \
-            i=$(i+1) is $(splits[i+1][end])"))
+        throw(ArgumentError("When providing custom time-points for curriculum learning or \
+            multiple-shooting,end point for interval i+1 must be larger than for interval \
+            i. This does not hold for i=$i; its end-point is $(splits[i][end]) and the
+            end point for i=$(i+1) is $(splits[i+1][end])"))
     end
     mdf = prob.model_info.model.petab_tables[:measurements]
     unique_t = _get_unique_timepoints(mdf)
@@ -81,22 +94,30 @@ function _split_custom_time(
             continue
         end
         if i == 1
-            throw(ArgumentError("When providing custom time-points for curriculum \
-                learning, each curriculum step i must include new measurements points. \
+            throw(ArgumentError("When providing custom time-points for curriculum learning \
+                or multiple-shooting, step/window i must include new measurements points. \
                 This does not hold for step $i. This means there are no measurement points \
                 in the measurement table between [0.0, $(tmax_split)]."))
         end
         tmax_prev = maximum(splits[i - 1])
-        throw(ArgumentError("When providing custom time-points for curriculum \
-            learning, each curriculum step i must include new measurements points. \
-            This does not hold for step $i. This means there are no measurement points \
-            in the measurement table between ($(tmax_prev), $(tmax_split)]."))
+        throw(ArgumentError("When providing custom time-points for curriculum learning or \
+            multiple shooting, each learning, each step/window i must include new
+            measurements points. This does not hold for step $i. This means there are no \
+            measurement points in the measurement table between \
+            ($(tmax_prev), $(tmax_split)]."))
     end
     if maximum(splits[end]) < maximum(unique_t)
-        throw(ArgumentError("When providing custom time-points for curriculum, the last \
-            stage must cover all measurements in the measurement table. This does not hold \
-            as the end-point time for the last interval is $(maximum(splits[end])) while \
-            the largest time-point in the measurements table is $(maximum(unique_t))."))
+        throw(ArgumentError("When providing custom time-points for curriculum learning or \
+            multiple shooting the last stage/window must cover all measurements in the
+            measurement table. This does not hold as the end-point time for the last \
+            interval is $(maximum(splits[end])) while the largest time-point in the \
+            measurements table is $(maximum(unique_t))."))
+    end
+    if method == :multiple_shooting
+        for i in 2:length(splits)
+            splits[i][1] = maximum(splits[i - 1])
+        end
+        return splits
     end
     return _split_time_curriculum(splits, mdf, prob)
 end
