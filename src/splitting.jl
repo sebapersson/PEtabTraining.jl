@@ -12,12 +12,14 @@ struct SplitCustom{T}
     mode::Symbol
     splits::T
 end
-function SplitCustom(splits::Union{Vector{<:Real}, Vector{Vector{T}}}; mode::Symbol = :time)::SplitCustom where T <: Union{String, Symbol}
+function SplitCustom(splits::Union{Vector{<:Real}, Vector{Vector{T}}};
+        mode::Symbol = :time)::SplitCustom where {T <: Union{String, Symbol}}
     @argcheck mode in [:time, :condition, :datapoints] "Mode must be either :time, \
          :datapoints or :condition"
 
     # Internally, for a common interface, splits must be a Vector{Vector}.
-    if mode == :condition && !(splits isa Vector{Vector{Symbol}} || splits isa Vector{Vector{String}})
+    if mode == :condition &&
+       !(splits isa Vector{Vector{Symbol}} || splits isa Vector{Vector{String}})
         throw(ArgumentError("If mode = :condition then provided splits must be a \
             Vector{Symbol} with condition to split over, e.g., [[:cond1, cond2], [:cond3]] \
             or a Vector{Vector{String}}, e.g, [[\"cond1\", \"cond2\"], [\"cond3\"]]))"))
@@ -145,7 +147,7 @@ function _split_uniform_conditions(prob::PEtabODEProblem, nsplits::Integer)
 end
 
 function _split_custom_conditions(prob::PEtabODEProblem,
-        splits::Vector{Vector{T}} ) where {T <: Union{String, Symbol}}
+        splits::Vector{Vector{T}}) where {T <: Union{String, Symbol}}
     splits_conditions = reduce(vcat, splits) .|> string
     conditions_ids = prob.model_info.simulation_info.conditionids[:simulation] .|> string
     for cid in conditions_ids
@@ -170,7 +172,7 @@ function _split_uniform_datapoints(prob::PEtabODEProblem, nsplits::Integer)
 
     out = Vector{Dict{Symbol, DataFrame}}(undef, nsplits)
     imaxs = _makechunks(collect(1:nrow(mdf)), nsplits) .|>
-        maximum
+            maximum
     for i in 1:nsplits
         out[i] = copy(prob.model_info.model.petab_tables)
         out[i][:measurements] = mdf_sorted[1:imaxs[i], :]
@@ -180,8 +182,8 @@ end
 
 function _split_custom_datapoints(prob::PEtabODEProblem, splits::Vector{<:Integer})
     nsplits = length(splits)
-    for i in 1:(nsplits-1)
-        splits[i] < splits[i+1] && continue
+    for i in 1:(nsplits - 1)
+        splits[i] < splits[i + 1] && continue
         throw(ArgumentError("When doing custom split based on data-points, each new \
             split interval must include more data-points than the previous. Interval \
             i = $(i+1) has less data-points than i = $i"))

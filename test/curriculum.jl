@@ -25,13 +25,14 @@ end
 function test_split_uniform_datapoints(model_id, n_stages)
     path_yaml = joinpath(@__DIR__, "published_models", model_id, "$(model_id).yaml")
     petab_prob = PEtabModel(path_yaml) |> PEtabODEProblem
-    stage_problems = PEtabCurriculumProblem(petab_prob, SplitUniform(n_stages; mode=:datapoints))
+    stage_problems = PEtabCurriculumProblem(
+        petab_prob, SplitUniform(n_stages; mode = :datapoints))
 
     mdf = petab_prob.model_info.model.petab_tables[:measurements]
     mdf_sorted = mdf[sortperm(mdf.time), :]
     @test issorted(mdf_sorted.time)
     imaxs = PEtabTraining._makechunks(collect(1:nrow(mdf)), n_stages) .|>
-        maximum
+            maximum
     for i in 1:n_stages
         mdf_tmp = mdf_sorted[1:imaxs[i], :]
         test_nllh(path_yaml, mdf, mdf_tmp, petab_prob, stage_problems.petab_problems[i])
@@ -74,7 +75,8 @@ end
 function test_split_conditions_custom(model_id, splits)
     path_yaml = joinpath(@__DIR__, "published_models", model_id, "$(model_id).yaml")
     petab_prob = PEtabModel(path_yaml) |> PEtabODEProblem
-    stage_problems = PEtabCurriculumProblem(petab_prob, SplitCustom(splits; mode = :condition))
+    stage_problems = PEtabCurriculumProblem(
+        petab_prob, SplitCustom(splits; mode = :condition))
     mdf = petab_prob.model_info.model.petab_tables[:measurements]
 
     for (i, split) in pairs(splits)
@@ -88,7 +90,8 @@ end
 function test_split_custom_datapoints(model_id, splits)
     path_yaml = joinpath(@__DIR__, "published_models", model_id, "$(model_id).yaml")
     petab_prob = PEtabModel(path_yaml) |> PEtabODEProblem
-    stage_problems = PEtabCurriculumProblem(petab_prob, SplitCustom(splits; mode = :datapoints))
+    stage_problems = PEtabCurriculumProblem(
+        petab_prob, SplitCustom(splits; mode = :datapoints))
     mdf = petab_prob.model_info.model.petab_tables[:measurements]
     mdf_sorted = mdf[sortperm(mdf.time), :]
     for (i, imax) in pairs(splits)
