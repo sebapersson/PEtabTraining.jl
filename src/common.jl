@@ -27,6 +27,11 @@ function _filter_condition_table!(petab_tables::Dict{Symbol, DataFrame})::Nothin
     cid_remove = String[]
     for cid in conditions_df.conditionId
         cid in cids_measurements_df && continue
+        if "preequilibrationConditionId" in names(measurements_df)
+            cond = cid in measurements_df.preequilibrationConditionId
+            ismissing(cond) && continue
+            cond == true && continue
+        end
         push!(cid_remove, cid)
     end
     _conditions_df = filter(row -> !(row.conditionId in cid_remove), conditions_df)
