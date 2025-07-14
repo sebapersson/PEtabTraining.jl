@@ -19,3 +19,17 @@ function _get_specie_ids(speciemap)
     specie_ids = replace.(specie_ids, "(t)" => "")
     return specie_ids
 end
+
+function _filter_condition_table!(petab_tables::Dict{Symbol, DataFrame})::Nothing
+    conditions_df = petab_tables[:conditions]
+    measurements_df = petab_tables[:measurements]
+    cids_measurements_df = unique(measurements_df.simulationConditionId)
+    cid_remove = String[]
+    for cid in conditions_df.conditionId
+        cid in cids_measurements_df && continue
+        push!(cid_remove, cid)
+    end
+    _conditions_df = filter(row -> !(row.conditionId in cid_remove), conditions_df)
+    petab_tables[:conditions] = _conditions_df
+    return nothing
+end

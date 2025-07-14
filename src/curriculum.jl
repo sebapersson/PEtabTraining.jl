@@ -8,6 +8,7 @@ function PEtabCurriculumProblem(
     petab_tables = _split(split_algorithm, prob_original, :curriculum)
     petab_problems = Vector{PEtabODEProblem}(undef, split_algorithm.nsplits)
     for i in eachindex(petab_tables)
+        _filter_condition_table!(petab_tables[i])
         model = PEtab._PEtabModel(prob_original.model_info.model.paths,
             petab_tables[i], false, false, true, false)
         petab_problems[i] = _PEtabODEProblem(model, prob_original)

@@ -19,6 +19,23 @@ function test_split_uniform_time(model_id, n_stages)
     return nothing
 end
 
+function test_split_uniform_datapoints(model_id, n_stages)
+    path_yaml = joinpath(@__DIR__, "published_models", model_id, "$(model_id).yaml")
+    petab_prob = PEtabModel(path_yaml) |> PEtabODEProblem
+    stage_problems = PEtabCurriculumProblem(petab_prob, SplitUniform(n_stages; mode=:datapoints))
+
+    mdf = petab_prob.model_info.model.petab_tables[:measurements]
+    mdf_sorted = mdf[sortperm(mdf.time), :]
+    @test issorted(mdf_sorted.time)
+    imaxs = PEtabTraining._makechunks(collect(1:nrow(mdf)), n_stages) .|>
+        maximum
+    for i in 1:n_stages
+        mdf_tmp = mdf_sorted[1:imaxs[i], :]
+        test_nllh(path_yaml, mdf, mdf_tmp, petab_prob, stage_problems.petab_problems[i])
+    end
+    return nothing
+end
+
 function test_split_custom_time(model_id, splits)
     path_yaml = joinpath(@__DIR__, "published_models", model_id, "$(model_id).yaml")
     petab_prob = PEtabModel(path_yaml) |> PEtabODEProblem
@@ -75,6 +92,18 @@ end
         end
         for n_stages in [2, 7]
             test_split_uniform_time("Bachmann_MSB2011", n_stages)
+        end
+    end
+
+    @testset "Uniform splitting data-points" begin
+        for n_stages in [2, 3, 5]
+            test_split_uniform_datapoints("Boehm_JProteomeRes2014", n_stages)
+        end
+        for n_stages in [3, 4, 6]
+            test_split_uniform_datapoints("Weber_BMC2015", n_stages)
+        end
+        for n_stages in [2, 7]
+            test_split_uniform_datapoints("Bachmann_MSB2011", n_stages)
         end
     end
 

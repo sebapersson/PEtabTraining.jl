@@ -33,6 +33,7 @@ function PEtabMultipleShootingProblem(prob_original::PEtabODEProblem,
     # subsequent PEtabODEProblem. In the PEtabODEProblem simulationInfo.tstarts must be
     # altered, to ensure that each simulations starts from the correct time-point to properly
     # handle any model events.
+    _filter_condition_table!(petab_tables_ms)
     model_ms = PEtab._PEtabModel(
         prob_original.model_info.model.paths, petab_tables_ms, false, false, true, false)
 

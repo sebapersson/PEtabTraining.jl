@@ -3,7 +3,8 @@ struct SplitUniform
     mode::Symbol
 end
 function SplitUniform(nsplits::Integer; mode::Symbol = :time)::SplitUniform
-    @argcheck mode in [:time, :condition] "Mode must be either :time or :condition"
+    @argcheck mode in [:time, :condition, :datapoints] "Mode must be either :time, \
+         :datapoints or :condition"
     return SplitUniform(nsplits, mode)
 end
 struct SplitCustom{T <: Union{AbstractFloat, String, Symbol}}
@@ -35,14 +36,19 @@ function SplitCustom(splits::Union{Vector, Vector{<:Vector}})::SplitCustom
 end
 
 function _split(split_algorithm::SplitUniform, prob::PEtabODEProblem, method::Symbol)
-    if split_algorithm.mode == :time
+    mode = split_algorithm.mode
+    if method == :multiple_shooting && (mode == :condition || mode == :datapoints)
+        throw(ArgumentError("For multiple shotting, splitting windows over $mode \
+            (mode = :$(mode)) is not allowed."))
+    end
+
+    if mode == :time
         return _split_uniform_time(prob, split_algorithm.nsplits, method)
+    elseif mode == :condition
+        return _split_uniform_conditions(prob, split_algorithm.nsplits)
+    elseif mode == :datapoints
+        return _split_uniform_datapoints(prob, split_algorithm.nsplits)
     end
-    if method == :multiple_shooting
-        throw(ArgumentError("For multiple shotting, splitting windows over conditions \
-            (mode = :condition) is not allowed."))
-    end
-    return _split_uniform_conditions(prob, split_algorithm.nsplits)
 end
 function _split(split_algorithm::SplitCustom, prob::PEtabODEProblem, method::Symbol)
     if split_algorithm.mode == :time
@@ -120,6 +126,25 @@ function _split_custom_time(prob::PEtabODEProblem, splits::Vector{<:Vector{<:Rea
         return splits
     end
     return _split_time_curriculum(splits, mdf, prob)
+end
+
+function _split_uniform_datapoints(prob::PEtabODEProblem, nsplits::Integer)
+    mdf = prob.model_info.model.petab_tables[:measurements]
+    mdf_sorted = mdf[sortperm(mdf.time), :]
+    if nrow(mdf_sorted) < nsplits
+        throw(ArgumentError("Number of data-points in the measurement table must be \
+            greater than or equal to number of splits (number of curriculum steps). There \
+            are $(nrow(mdf)) data-points and nsplits=$(nsplits)."))
+    end
+
+    out = Vector{Dict{Symbol, DataFrame}}(undef, nsplits)
+    imaxs = _makechunks(collect(1:nrow(mdf)), nsplits) .|>
+        maximum
+    for i in 1:nsplits
+        out[i] = copy(prob.model_info.model.petab_tables)
+        out[i][:measurements] = mdf_sorted[1:imaxs[i], :]
+    end
+    return out
 end
 
 function _split_uniform_conditions(prob::PEtabODEProblem, nsplits::Integer)
