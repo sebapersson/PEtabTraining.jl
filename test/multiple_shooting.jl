@@ -8,7 +8,7 @@ function test_multiple_shooting(model_id, n_windows::Integer)
     return nothing
 end
 function test_multiple_shooting(model_id, windows::Vector)
-    split_algorithm = SplitCustom(windows)
+    split_algorithm = SplitCustom(windows; mode = :time)
     _test_multiple_shooting(model_id, split_algorithm)
     return nothing
 end
@@ -28,7 +28,7 @@ function _test_multiple_shooting(model_id, split_algorithm)
     if split_algorithm isa SplitUniform
         windows = PEtabTraining._makechunks(unique_t, split_algorithm.nsplits; overlap = 1)
     else
-        windows = split_algorithm.splits
+        windows = PEtabTraining._splits_to_windows(split_algorithm.splits)
     end
     cids = prob.petab_prob_ms.model_info.model.petab_tables[:conditions].conditionId |>
            unique
