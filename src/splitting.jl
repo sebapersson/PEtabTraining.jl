@@ -23,9 +23,9 @@ function SplitCustom(splits::Union{Vector{<:Real}, Vector{Vector{T}}};
             shooting window, e.g., [4.0, 20.0, 30.0]."))
     end
     if mode == :condition && !(s isa Vector{Vector{Symbol}} || s isa Vector{Vector{String}})
-       throw(ArgumentError("If `mode = :condition`, then `splits` must be a \
-            `Vector{Vector}` of simulation condition groups to split over, \
-            e.g., [[:cond1, :cond2], [:cond3]]."))
+        throw(ArgumentError("If `mode = :condition`, then `splits` must be a \
+             `Vector{Vector}` of simulation condition groups to split over, \
+             e.g., [[:cond1, :cond2], [:cond3]]."))
     end
     if mode == :datapoints && !(s isa Vector{<:Integer})
         throw(ArgumentError("If `mode = :datapoints`, then splits must be a \
@@ -34,8 +34,8 @@ function SplitCustom(splits::Union{Vector{<:Real}, Vector{Vector{T}}};
     end
     for (i, split) in pairs(splits)
         !isempty(split) && continue
-            throw(ArgumentError("Interval $i is empty in the provided splits. When \
-                providing custom splits, no interval may be empty."))
+        throw(ArgumentError("Interval $i is empty in the provided splits. When \
+            providing custom splits, no interval may be empty."))
     end
 
     return SplitCustom(length(splits), mode, splits)
@@ -177,7 +177,8 @@ function _check_mode(mode::Symbol, method::Symbol)::Nothing
     return nothing
 end
 
-function _check_n_splits(prob::PEtabODEProblem, nsplits::Integer, max_splits_criteria::Symbol)::Nothing
+function _check_n_splits(
+        prob::PEtabODEProblem, nsplits::Integer, max_splits_criteria::Symbol)::Nothing
     if max_splits_criteria == :time
         mdf = prob.model_info.model.petab_tables[:measurements]
         max_splits = length(_get_unique_timepoints(mdf))

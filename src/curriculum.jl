@@ -15,7 +15,8 @@ function PEtabCurriculumProblem(
     end
     return PEtabCurriculumProblem(split_algorithm, petab_problems, prob_original)
 end
-function _split_curriculum(splits, mdf::DataFrame, prob::PEtabODEProblem, mode::Symbol)::Vector{Dict{Symbol, DataFrame}}
+function _split_curriculum(splits, mdf::DataFrame, prob::PEtabODEProblem,
+        mode::Symbol)::Vector{Dict{Symbol, DataFrame}}
     @assert mode in [:datapoints, :time, :conditions]
     out = Vector{Dict{Symbol, DataFrame}}(undef, length(splits))
     if mode in [:datapoints, :time]

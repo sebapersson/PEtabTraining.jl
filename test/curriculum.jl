@@ -31,7 +31,8 @@ function test_split_uniform_datapoints(model_id, n_stages)
             maximum
     for i in 1:n_stages
         mdf_tmp = mdf_sorted[1:imaxs[i], :]
-        test_nllh(path_yaml, mdf_sorted, mdf_tmp, petab_prob, stage_problems.petab_problems[i])
+        test_nllh(
+            path_yaml, mdf_sorted, mdf_tmp, petab_prob, stage_problems.petab_problems[i])
     end
     return nothing
 end
