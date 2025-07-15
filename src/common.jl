@@ -38,3 +38,22 @@ function _filter_condition_table!(petab_tables::Dict{Symbol, DataFrame})::Nothin
     petab_tables[:conditions] = _conditions_df
     return nothing
 end
+
+function _get_unique_timepoints(mdf::DataFrame)::Vector{Float64}
+    return mdf.time |>
+           unique |>
+           sort
+end
+
+function _get_measurements_df_sorted(prob::PEtabODEProblem)::DataFrame
+    mdf = prob.model_info.model.petab_tables[:measurements]
+    return mdf[sortperm(mdf.time), :]
+end
+
+function _splits_to_windows(splits::Vector{<:Real})
+    splits = [[0.0, split] for split in splits]
+    for i in 2:length(splits)
+        splits[i][1] = maximum(splits[i - 1])
+    end
+    return splits
+end

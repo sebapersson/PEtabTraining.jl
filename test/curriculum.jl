@@ -2,9 +2,6 @@ using CSV, DataFrames, PEtab, PEtabTraining, Test
 
 include(joinpath(@__DIR__, "helper.jl"))
 
-# TODO: Do not error if last data-point not provided in custom, rather round up and add
-# TODO: with a warning
-
 function test_split_uniform_time(model_id, n_stages)
     path_yaml = joinpath(@__DIR__, "published_models", model_id, "$(model_id).yaml")
     petab_prob = PEtabModel(path_yaml) |> PEtabODEProblem
@@ -28,14 +25,13 @@ function test_split_uniform_datapoints(model_id, n_stages)
     stage_problems = PEtabCurriculumProblem(
         petab_prob, SplitUniform(n_stages; mode = :datapoints))
 
-    mdf = petab_prob.model_info.model.petab_tables[:measurements]
-    mdf_sorted = mdf[sortperm(mdf.time), :]
+    mdf_sorted = PEtabTraining._get_measurements_df_sorted(petab_prob)
     @test issorted(mdf_sorted.time)
-    imaxs = PEtabTraining._makechunks(collect(1:nrow(mdf)), n_stages) .|>
+    imaxs = PEtabTraining._makechunks(collect(1:nrow(mdf_sorted)), n_stages) .|>
             maximum
     for i in 1:n_stages
         mdf_tmp = mdf_sorted[1:imaxs[i], :]
-        test_nllh(path_yaml, mdf, mdf_tmp, petab_prob, stage_problems.petab_problems[i])
+        test_nllh(path_yaml, mdf_sorted, mdf_tmp, petab_prob, stage_problems.petab_problems[i])
     end
     return nothing
 end

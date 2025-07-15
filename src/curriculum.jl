@@ -15,24 +15,25 @@ function PEtabCurriculumProblem(
     end
     return PEtabCurriculumProblem(split_algorithm, petab_problems, prob_original)
 end
-function _split_time_curriculum(
-        splits, mdf::DataFrame, prob::PEtabODEProblem)::Vector{Dict{Symbol, DataFrame}}
+function _split_curriculum(splits, mdf::DataFrame, prob::PEtabODEProblem, mode::Symbol)::Vector{Dict{Symbol, DataFrame}}
+    @assert mode in [:datapoints, :time, :conditions]
     out = Vector{Dict{Symbol, DataFrame}}(undef, length(splits))
-    for (i, split) in pairs(splits)
-        tmax = maximum(split)
-        out[i] = copy(prob.model_info.model.petab_tables)
-        out[i][:measurements] = mdf[mdf[!, :time] .≤ tmax, :]
-    end
-    return out
-end
-
-function _split_condition_curriculum(
-        splits, mdf::DataFrame, prob::PEtabODEProblem)::Vector{Dict{Symbol, DataFrame}}
-    out = Vector{Dict{Symbol, DataFrame}}(undef, length(splits))
-    for (i, split) in pairs(splits)
-        out[i] = copy(prob.model_info.model.petab_tables)
-        irow = findall(x -> x in split, mdf.simulationConditionId)
-        out[i][:measurements] = mdf[irow, :]
+    if mode in [:datapoints, :time]
+        for (i, split) in pairs(splits)
+            out[i] = copy(prob.model_info.model.petab_tables)
+            if mode == :time
+                tmax = maximum(split)
+                out[i][:measurements] = mdf[mdf[!, :time] .≤ tmax, :]
+            else
+                out[i][:measurements] = mdf[1:maximum(splits[i]), :]
+            end
+        end
+    elseif mode == :conditions
+        for (i, split) in pairs(splits)
+            out[i] = copy(prob.model_info.model.petab_tables)
+            irow = findall(x -> x in split, mdf.simulationConditionId)
+            out[i][:measurements] = mdf[irow, :]
+        end
     end
     return out
 end

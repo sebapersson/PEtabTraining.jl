@@ -28,12 +28,7 @@ function _test_multiple_shooting(model_id, split_algorithm)
     if split_algorithm isa SplitUniform
         windows = PEtabTraining._makechunks(unique_t, split_algorithm.nsplits; overlap = 1)
     else
-        # TODO: Fix
-        windows = split_algorithm.splits
-        windows = [[0.0, w] for w in windows]
-        for i in 2:length(windows)
-            windows[i][1] = maximum(windows[i - 1])
-        end
+        windows = PEtabTraining._splits_to_windows(split_algorithm.splits)
     end
     cids = prob.petab_prob_ms.model_info.model.petab_tables[:conditions].conditionId |>
            unique
