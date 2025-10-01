@@ -7,7 +7,6 @@ ArgCheck = "dce04be8-c92d-5529-be00-80e4d2c0e197"
 CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
 Catalyst = "479239e8-5488-4da2-87a7-35f2df7eef83"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
-LinearSolve = "7ed4a6bd-45f5-4d41-b270-4a48e9bafcae"
 OrdinaryDiffEqRosenbrock = "43230ef6-c299-4910-a778-202eb28ce4ce"
 PEtab = "48d54b35-e43e-4a66-a5a1-dde6b987cf69"
 Revise = "295af30f-e4ad-537b-8983-00126c2a3abe"
@@ -15,9 +14,8 @@ SimpleUnPack = "ce78b400-467f-4804-87d8-8f486da07d0a"
 
 [compat]
 Catalyst = "15.0.8"
-LinearSolve = "3.15 - 3.17.0"
 OrdinaryDiffEqRosenbrock = "1.11.0"
-PEtab = "3.8.5"
+PEtab = "3.10.0"
 Revise = "3.8.0"
 SimpleUnPack = "1.1.0"
 
