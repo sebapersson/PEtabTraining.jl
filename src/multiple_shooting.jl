@@ -146,7 +146,8 @@ function _add_overlap_windows!(petab_tables::Dict{Symbol, DataFrame}, cid::Strin
 
         # Assign initial value to parameter value via conditions table
         if specie_id in names(df_c)
-            df_c[i, specie_id] = pid
+            df_c[!, specie_id] = string.(df_c[!, specie_id])
+            df_c[1, specie_id] = pid
         else
             df_c[!, specie_id] .= pid
         end
@@ -168,7 +169,7 @@ function _add_overlap_windows!(petab_tables::Dict{Symbol, DataFrame}, cid::Strin
             measurement = 0.0, time = maximum(window))
         append!(measurements_df, df_m, cols = :subset)
     end
-    append!(conditions_df, df_c)
+    append!(conditions_df, df_c, promote = true)
     return nothing
 end
 
