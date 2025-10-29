@@ -2,6 +2,7 @@ module PEtabTraining
 
 using ArgCheck: @argcheck
 import Catalyst
+import ComponentArrays
 import CSV
 using DataFrames: DataFrame, nrow
 import PEtab: PEtab, PEtabModel, PEtabODEProblem

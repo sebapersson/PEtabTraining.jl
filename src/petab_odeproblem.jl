@@ -13,10 +13,8 @@ function _PEtabODEProblem(
         ss_solver = ss_solver, ss_solver_gradient = ss_solver_gradient,
         gradient_method = gradient_method, hessian_method = hessian_method,
         sensealg = sensealg, reuse_sensitivities = reuse_sensitivities)
-    prob_to_original = [findfirst(x -> x == name, prob.xnames)
-                        for name in prob_original.xnames]
-    original_to_prob = [findfirst(x -> x == name, prob_original.xnames)
-                        for name in prob.xnames]
+    prob_to_original = _perm_from_labels(prob_original.xnominal, prob.xnominal)
+    original_to_prob = _perm_from_labels(prob.xnominal, prob_original.xnominal)
     nllh = _get_nllh(prob, original_to_prob)
     prior = _get_prior(prob, original_to_prob)
     chi2 = _get_chi2(prob, original_to_prob)

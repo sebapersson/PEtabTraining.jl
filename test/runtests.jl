@@ -11,3 +11,7 @@ end
 @safetestset "Multiple shooting" begin
     include("multiple_shooting.jl")
 end
+
+@safetestset "Util functions" begin
+    include("util.jl")
+end

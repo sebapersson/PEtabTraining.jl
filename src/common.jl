@@ -20,7 +20,7 @@ function _get_specie_ids(speciemap)
     return specie_ids
 end
 
-function _filter_condition_table!(petab_tables::Dict{Symbol, DataFrame})::Nothing
+function _filter_condition_table!(petab_tables::PEtab.PEtabTables)::Nothing
     conditions_df = petab_tables[:conditions]
     measurements_df = petab_tables[:measurements]
     cids_measurements_df = unique(measurements_df.simulationConditionId)

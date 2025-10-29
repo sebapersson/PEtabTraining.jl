@@ -77,3 +77,16 @@ function _get_ms_u0_xnames(prob::PEtabMultipleShootingProblem)::Vector{Symbol}
     end
     return xnames
 end
+
+"""
+_perm_from_labels(x::ComponentVector, y::ComponentVector)
+
+Return a permutation ix such that getdata(y)[ix] == getdata(x).
+"""
+function _perm_from_labels(x::ComponentArrays.ComponentVector, y::ComponentArrays.ComponentVector)
+    ix = fill(0, length(x))
+    for (i, label) in pairs(ComponentArrays.labels(x))
+        ix[i] = only(ComponentArrays.label2index(y, label))
+    end
+    return ix
+end
