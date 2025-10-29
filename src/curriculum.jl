@@ -8,12 +8,15 @@ function PEtabCurriculumProblem(prob_original::PEtabODEProblem, split_algorithm)
     petab_problems = Vector{PEtabODEProblem}(undef, split_algorithm.nsplits)
     for i in eachindex(petab_tables)
         _filter_condition_table!(petab_tables[i])
-        model = PEtab._PEtabModel(prob_original.model_info.model.paths, petab_tables[i], false, false, true, false, prob_original.model_info.model.ml_models)
+        model = PEtab._PEtabModel(
+            prob_original.model_info.model.paths, petab_tables[i], false,
+            false, true, false, prob_original.model_info.model.ml_models)
         petab_problems[i] = _PEtabODEProblem(model, prob_original)
     end
     return PEtabCurriculumProblem(split_algorithm, petab_problems, prob_original)
 end
-function _split_curriculum(splits, mdf::DataFrame, prob::PEtabODEProblem, mode::Symbol)::Vector{PEtab.PEtabTables}
+function _split_curriculum(splits, mdf::DataFrame, prob::PEtabODEProblem,
+        mode::Symbol)::Vector{PEtab.PEtabTables}
     @assert mode in [:datapoints, :time, :conditions]
     out = Vector{PEtab.PEtabTables}(undef, length(splits))
     if mode in [:datapoints, :time]

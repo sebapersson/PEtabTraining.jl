@@ -1,7 +1,7 @@
 function _PEtabODEProblem(
         model::PEtabModel, prob_original::PEtabODEProblem)::PEtabODEProblem
     @unpack (solver, solver_gradient, ss_solver, ss_solver_gradient, gradient_method,
-    hessian_method, sensealg, reuse_sensitivities) = prob_original.probinfo
+        hessian_method, sensealg, reuse_sensitivities) = prob_original.probinfo
 
     # Sometimes parameters only appear for a subset of splits, for example
     # observable-parameters associated with observables for a subset of conditions and/or

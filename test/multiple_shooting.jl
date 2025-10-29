@@ -51,9 +51,10 @@ function _test_multiple_shooting(model_id, split_algorithm)
         cid_original = PEtabTraining._get_cid_from_window_id(cid)
         m_cid_df_ms = mdf_ms[mdf_ms[!, :simulationConditionId] .== cid, :]
         m_cid_df_original = mdf_original[
-            findall(x -> x ≥ tmin && x ≤ tmax, mdf_original.time), :]
+        findall(x -> x ≥ tmin && x ≤ tmax, mdf_original.time), :]
         m_cid_df_original = m_cid_df_original[
-            m_cid_df_original[!, :simulationConditionId] .== cid_original, :]
+        m_cid_df_original[
+            !, :simulationConditionId] .== cid_original, :]
         next_cid = replace(cid, "__window$(window_index)_" => "__window$(window_index+1)_")
         if next_cid in cids
             @test nrow(m_cid_df_ms) == nrow(m_cid_df_original) + n_species

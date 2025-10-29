@@ -34,9 +34,12 @@ function PEtabMultipleShootingProblem(prob_original::PEtabODEProblem,
     # altered, to ensure that each simulations starts from the correct time-point to properly
     # handle any model events.
     _filter_condition_table!(petab_tables_ms)
-    model_ms = PEtab._PEtabModel(prob_original.model_info.model.paths, petab_tables_ms, false, false, true, false, prob_original.model_info.model.ml_models)
+    model_ms = PEtab._PEtabModel(
+        prob_original.model_info.model.paths, petab_tables_ms, false,
+        false, true, false, prob_original.model_info.model.ml_models)
 
-    @unpack (solver, solver_gradient, ss_solver, ss_solver_gradient, gradient_method, hessian_method, sensealg, reuse_sensitivities) = prob_original.probinfo
+    @unpack (solver, solver_gradient, ss_solver, ss_solver_gradient, gradient_method,
+        hessian_method, sensealg, reuse_sensitivities) = prob_original.probinfo
     petab_prob_ms = PEtabODEProblem(
         model_ms; odesolver = solver, odesolver_gradient = solver_gradient,
         ss_solver = ss_solver, ss_solver_gradient = ss_solver_gradient,
@@ -52,7 +55,9 @@ function PEtabMultipleShootingProblem(prob_original::PEtabODEProblem,
     return PEtabMultipleShootingProblem(split_algorithm, 1.0, petab_prob_ms, prob_original)
 end
 
-function _add_first_window!(petab_tables::PEtab.PEtabTables, condition_df_original::DataFrame, window::Vector{<:Real}, speciemap::Vector)::Nothing
+function _add_first_window!(
+        petab_tables::PEtab.PEtabTables, condition_df_original::DataFrame,
+        window::Vector{<:Real}, speciemap::Vector)::Nothing
     specie_ids = _get_specie_ids(speciemap)
     conditions_df = petab_tables[:conditions]
     parameters_df = petab_tables[:parameters]
