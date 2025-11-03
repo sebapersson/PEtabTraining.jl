@@ -1,12 +1,17 @@
-function test_nllh(model_id, mdf::DataFrame, mdf_tmp::DataFrame,
-        petab_prob, stage_problems_i)::Nothing
-    if model_id != "mm_julia"
-        CSV.write(petab_prob.model_info.model.paths[:measurements], mdf_tmp, delim = '\t')
-        petab_prob_ref = _get_petab_problem(model_id::String)
-        CSV.write(petab_prob.model_info.model.paths[:measurements], mdf, delim = '\t')
-    else
+include(joinpath(@__DIR__, "mm_model.jl"))
+include(joinpath(@__DIR__, "ude_model.jl"))
+
+function test_nllh(model_id, mdf::DataFrame, mdf_tmp::DataFrame, petab_prob, stage_problems_i)::Nothing
+    if model_id == "mm_julia"
         petab_prob_ref = _get_mm_model(; measurements_df = mdf_tmp) |>
             PEtabODEProblem
+    elseif model_id == "ude"
+        model = _get_lv_ude_model(; measurements_df = mdf_tmp)
+        petab_prob_ref = PEtabODEProblem(model; odesolver = ODESolver(Rodas5P()))
+    else
+        CSV.write(petab_prob.model_info.model.paths[:measurements], mdf_tmp, delim = '\t')
+        petab_prob_ref = _get_petab_problem(model_id)
+        CSV.write(petab_prob.model_info.model.paths[:measurements], mdf, delim = '\t')
     end
     nllh_ref = petab_prob_ref.nllh(get_x(petab_prob_ref))
     nllh_test = stage_problems_i.nllh(get_x(petab_prob))
@@ -26,7 +31,7 @@ function test_chunk_size(chunks)
     end
 end
 
-function _get_prob_duplicated(prob::PEtabODEProblem, windows)
+function _get_prob_duplicated(model_id, prob::PEtabODEProblem, windows)
     model_original = prob.model_info.model
     mdf = prob.model_info.model.petab_tables[:measurements]
     mdf_duplicate = DataFrame()
@@ -34,22 +39,26 @@ function _get_prob_duplicated(prob::PEtabODEProblem, windows)
         irow = findall(x -> x ≥ minimum(window) && x ≤ maximum(window), mdf.time)
         mdf_duplicate = vcat(mdf_duplicate, mdf[irow, :])
     end
-    if model_original.defined_in_julia == false
+    if model_id == "mm_julia"
+        model = _get_mm_model(; measurements_df = mdf_duplicate)
+    elseif model_id == "ude"
+        model = _get_lv_ude_model(; measurements_df = mdf_duplicate)
+    else
         tables_duplicate = deepcopy(prob.model_info.model.petab_tables)
         tables_duplicate[:measurements] = mdf_duplicate
         model = PEtab._PEtabModel(model_original.paths, tables_duplicate, false, false, true, false, model_original.ml_models)
-    else
-        model = _get_mm_model(; measurements_df = mdf_duplicate)
     end
     return PEtabODEProblem(model)
 end
 
 function _get_petab_problem(model_id::String)::PEtabODEProblem
-    if model_id != "mm_julia"
+    if model_id == "mm_julia"
+        model = _get_mm_model()
+    elseif model_id == "ude"
+        model = _get_lv_ude_model()
+    else
         path_yaml = joinpath(@__DIR__, "published_models", model_id, "$(model_id).yaml")
         model = PEtabModel(path_yaml)
-    else
-        model = _get_mm_model()
     end
-    return PEtabODEProblem(model)
+    return PEtabODEProblem(model; odesolver = ODESolver(Rodas5P()))
 end

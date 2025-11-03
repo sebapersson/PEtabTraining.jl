@@ -1,7 +1,6 @@
 using CSV, DataFrames, PEtab, PEtabTraining, Test
 
 include(joinpath(@__DIR__, "helper.jl"))
-include(joinpath(@__DIR__, "mm_model.jl"))
 
 function test_multiple_shooting(model_id, n_windows::Integer)
     split_algorithm = SplitUniform(n_windows)
@@ -69,6 +68,7 @@ function _test_multiple_shooting(model_id, split_algorithm)
     PEtabTraining.set_u0_windows!(prob, 4.0)
     @test all(prob.petab_prob_ms.xnominal[xnames_u0] .== 4.0)
     @test all(prob.petab_prob_ms.xnominal_transformed[xnames_u0] .== 4.0)
+
     # Initial values for the first window
     x_original = get_x(prob.original)
     PEtabTraining.set_u0_windows!(prob, x_original, :window1_u0)
@@ -80,6 +80,7 @@ function _test_multiple_shooting(model_id, split_algorithm)
         u0_ms = PEtab.get_u0(x_ms, prob.petab_prob_ms; retmap = false, cid = cid)
         @test u0_ms == u0_original
     end
+
     # Test effect changing penalty parameter
     nllh1 = prob.petab_prob_ms.nllh(x_ms)
     PEtabTraining.set_window_penalty!(prob, 2.0)
@@ -90,9 +91,13 @@ function _test_multiple_shooting(model_id, split_algorithm)
     # Values from simulating initial values.
     # Easiest to check comparing the likelihood between original and ms problem, where for the
     # original problem, only difference is that duplicated points must be added. Note, due
-    # to penalty entering via a likelihood, 0.5 * log(2π) must be accounted for.
+    # to penalty entering via a likelihood, 0.5 * log(2π) must be accounted for. Not yet
+    # applicable for provided as ODEProblem
+    if prob.original.model_info.model.sys isa ODEProblem
+        return nothing
+    end
     PEtabTraining.set_u0_windows!(prob, x_original, :window1_simulate)
-    prob_duplicated = _get_prob_duplicated(prob.original, windows)
+    prob_duplicated = _get_prob_duplicated(model_id, prob.original, windows)
     nllh_ms = prob.petab_prob_ms.nllh(get_x(prob.petab_prob_ms))
     nllh_ms -= 0.5 * log(2π) * length(xnames_u0)
     nllh_duplicated = prob_duplicated.nllh(get_x(prob_duplicated))
@@ -104,6 +109,7 @@ end
     for n_windows in [2, 3, 5]
         test_multiple_shooting("Boehm_JProteomeRes2014", n_windows)
         test_multiple_shooting("mm_julia", n_windows)
+        test_multiple_shooting("ude", n_windows)
     end
     splits_test = [[15.0, 40.0, 100.0, 240.0], [13.0, 25.0, 105.0, 250.0]]
     for split in splits_test

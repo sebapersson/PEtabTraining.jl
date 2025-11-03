@@ -1,7 +1,6 @@
 using CSV, DataFrames, PEtab, PEtabTraining, Test
 
 include(joinpath(@__DIR__, "helper.jl"))
-include(joinpath(@__DIR__, "mm_model.jl"))
 
 function test_split_uniform_time(model_id, n_stages)
     petab_prob = _get_petab_problem(model_id)
@@ -102,6 +101,9 @@ end
         end
         for n_stages in [3, 4]
             test_split_uniform_time("mm_julia", n_stages)
+        end
+        for n_stages in [2, 3]
+            test_split_uniform_time("ude", n_stages)
         end
         for n_stages in [2, 7]
             test_split_uniform_time("Bachmann_MSB2011", n_stages)
