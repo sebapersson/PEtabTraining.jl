@@ -34,9 +34,12 @@ function PEtabMultipleShootingProblem(prob_original::PEtabODEProblem,
     # altered, to ensure that each simulations starts from the correct time-point to properly
     # handle any model events.
     _filter_condition_table!(petab_tables_ms)
-    model_ms = PEtab._PEtabModel(
-        prob_original.model_info.model.paths, petab_tables_ms, false,
-        false, true, false, prob_original.model_info.model.ml_models)
+    model_original = prob_original.model_info.model
+    if model_original.defined_in_julia == false
+        model_ms = PEtab._PEtabModel(prob_original.model_info.model.paths, petab_tables_ms, false, false, true, false, prob_original.model_info.model.ml_models)
+    else
+        model_ms = PEtab._PEtabModel(model_original.sys, petab_tables_ms, model_original.name, model_original.speciemap, model_original.parametermap, model_original.callbacks, model_original.ml_models, false; float_tspan = model_original.float_tspan)
+    end
 
     @unpack (solver, solver_gradient, ss_solver, ss_solver_gradient, gradient_method,
         hessian_method, sensealg, reuse_sensitivities) = prob_original.probinfo
@@ -206,16 +209,18 @@ function _get_window_id(
         cid::String, window_index::Integer, specie_id::String, which::Symbol)::String
     @assert which in [:condition, :parameter, :observable]
     if which == :condition
-        return "__window$(window_index)_$(cid)__"
+        return "___window$(window_index)___$(cid)___"
     elseif which == :parameter
-        return "__window$(window_index)_$(cid)__$(specie_id)"
+        return "___window$(window_index)___$(cid)___$(specie_id)"
     elseif which == :observable
-        return "__window$(window_index)_obs_$(cid)__$(specie_id)"
+        return "___window$(window_index)___obs___$(cid)___$(specie_id)"
     end
 end
 
 function _get_cid_from_window_id(id::Union{String, Symbol})::String
-    return string(match(r"__window\d+_([^_]+.*)__", "$id").captures[1])
+    s = string(id)
+    m = match(r"^___window\d+___(.*)___.*$", s)
+    return m.captures[1]
 end
 
 function _get_index_from_window_id(id::Union{String, Symbol})::Int64
@@ -223,5 +228,7 @@ function _get_index_from_window_id(id::Union{String, Symbol})::Int64
 end
 
 function _get_specie_id_from_window_id(id::Union{String, Symbol})::String
-    return split("$id", "__")[end]
+    s = string(id)
+    m = match(r"^___window\d+___(.*)___(.*)$", s)
+    return m.captures[2]
 end

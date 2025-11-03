@@ -1,6 +1,7 @@
 using CSV, DataFrames, PEtab, PEtabTraining, Test
 
 include(joinpath(@__DIR__, "helper.jl"))
+include(joinpath(@__DIR__, "mm_model.jl"))
 
 function test_multiple_shooting(model_id, n_windows::Integer)
     split_algorithm = SplitUniform(n_windows)
@@ -14,8 +15,7 @@ function test_multiple_shooting(model_id, windows::Vector)
 end
 
 function _test_multiple_shooting(model_id, split_algorithm)
-    path_yaml = joinpath(@__DIR__, "published_models", model_id, "$(model_id).yaml")
-    prob_original = PEtabModel(path_yaml) |> PEtabODEProblem
+    prob_original = _get_petab_problem(model_id)
 
     prob = PEtabMultipleShootingProblem(prob_original, split_algorithm)
 
@@ -103,11 +103,13 @@ end
 @testset "Multiple shooting" begin
     for n_windows in [2, 3, 5]
         test_multiple_shooting("Boehm_JProteomeRes2014", n_windows)
+        test_multiple_shooting("mm_julia", n_windows)
     end
     splits_test = [[15.0, 40.0, 100.0, 240.0], [13.0, 25.0, 105.0, 250.0]]
     for split in splits_test
         test_multiple_shooting("Boehm_JProteomeRes2014", split)
     end
+    test_multiple_shooting("mm_julia", [5.0, 10.0])
 
     for n_windows in [2, 4]
         test_multiple_shooting("Fujita_SciSignal2010", n_windows)

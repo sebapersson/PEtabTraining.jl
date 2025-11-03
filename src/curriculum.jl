@@ -4,13 +4,16 @@ struct PEtabCurriculumProblem
     original::PEtabODEProblem
 end
 function PEtabCurriculumProblem(prob_original::PEtabODEProblem, split_algorithm)::PEtabCurriculumProblem
+    model_original = prob_original.model_info.model
     petab_tables = _split(split_algorithm, prob_original, :curriculum)
     petab_problems = Vector{PEtabODEProblem}(undef, split_algorithm.nsplits)
     for i in eachindex(petab_tables)
         _filter_condition_table!(petab_tables[i])
-        model = PEtab._PEtabModel(
-            prob_original.model_info.model.paths, petab_tables[i], false,
-            false, true, false, prob_original.model_info.model.ml_models)
+        if prob_original.model_info.model.defined_in_julia == false
+            model = PEtab._PEtabModel(model_original.paths, petab_tables[i], false, false, true, false, model_original.ml_models)
+        else
+            model = PEtab._PEtabModel(model_original.sys, petab_tables[i], model_original.name, model_original.speciemap, model_original.parametermap, model_original.callbacks, model_original.ml_models, false; float_tspan = model_original.float_tspan)
+        end
         petab_problems[i] = _PEtabODEProblem(model, prob_original)
     end
     return PEtabCurriculumProblem(split_algorithm, petab_problems, prob_original)

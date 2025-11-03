@@ -1,10 +1,10 @@
 using CSV, DataFrames, PEtab, PEtabTraining, Test
 
 include(joinpath(@__DIR__, "helper.jl"))
+include(joinpath(@__DIR__, "mm_model.jl"))
 
 function test_split_uniform_time(model_id, n_stages)
-    path_yaml = joinpath(@__DIR__, "published_models", model_id, "$(model_id).yaml")
-    petab_prob = PEtabModel(path_yaml) |> PEtabODEProblem
+    petab_prob = _get_petab_problem(model_id)
     stage_problems = PEtabCurriculumProblem(petab_prob, SplitUniform(n_stages))
 
     mdf = petab_prob.model_info.model.petab_tables[:measurements]
@@ -14,14 +14,13 @@ function test_split_uniform_time(model_id, n_stages)
 
     for i in 1:n_stages
         mdf_tmp = mdf[mdf[!, :time] .≤ maximum(time_chunks[i]), :]
-        test_nllh(path_yaml, mdf, mdf_tmp, petab_prob, stage_problems.petab_problems[i])
+        test_nllh(model_id, mdf, mdf_tmp, petab_prob, stage_problems.petab_problems[i])
     end
     return nothing
 end
 
 function test_split_uniform_datapoints(model_id, n_stages)
-    path_yaml = joinpath(@__DIR__, "published_models", model_id, "$(model_id).yaml")
-    petab_prob = PEtabModel(path_yaml) |> PEtabODEProblem
+    petab_prob = _get_petab_problem(model_id)
     stage_problems = PEtabCurriculumProblem(
         petab_prob, SplitUniform(n_stages; mode = :datapoints))
 
@@ -31,28 +30,25 @@ function test_split_uniform_datapoints(model_id, n_stages)
             maximum
     for i in 1:n_stages
         mdf_tmp = mdf_sorted[1:imaxs[i], :]
-        test_nllh(
-            path_yaml, mdf_sorted, mdf_tmp, petab_prob, stage_problems.petab_problems[i])
+        test_nllh(model_id, mdf_sorted, mdf_tmp, petab_prob, stage_problems.petab_problems[i])
     end
     return nothing
 end
 
 function test_split_custom_time(model_id, splits)
-    path_yaml = joinpath(@__DIR__, "published_models", model_id, "$(model_id).yaml")
-    petab_prob = PEtabModel(path_yaml) |> PEtabODEProblem
+    petab_prob = _get_petab_problem(model_id)
     stage_problems = PEtabCurriculumProblem(petab_prob, SplitCustom(splits; mode = :time))
     mdf = petab_prob.model_info.model.petab_tables[:measurements]
 
     for (i, max_val) in pairs(splits)
         mdf_tmp = mdf[mdf[!, :time] .≤ max_val, :]
-        test_nllh(path_yaml, mdf, mdf_tmp, petab_prob, stage_problems.petab_problems[i])
+        test_nllh(model_id, mdf, mdf_tmp, petab_prob, stage_problems.petab_problems[i])
     end
     return nothing
 end
 
 function test_split_uniform_conditions(model_id, n_stages)
-    path_yaml = joinpath(@__DIR__, "published_models", model_id, "$(model_id).yaml")
-    petab_prob = PEtabModel(path_yaml) |> PEtabODEProblem
+    petab_prob = _get_petab_problem(model_id)
     stage_problems = PEtabCurriculumProblem(
         petab_prob, SplitUniform(n_stages; mode = :condition))
 
@@ -64,14 +60,13 @@ function test_split_uniform_conditions(model_id, n_stages)
     for i in 1:n_stages
         irow = findall(x -> x in condition_chunks[i], mdf.simulationConditionId)
         mdf_tmp = mdf[irow, :]
-        test_nllh(path_yaml, mdf, mdf_tmp, petab_prob, stage_problems.petab_problems[i])
+        test_nllh(model_id, mdf, mdf_tmp, petab_prob, stage_problems.petab_problems[i])
     end
     return nothing
 end
 
 function test_split_conditions_custom(model_id, splits)
-    path_yaml = joinpath(@__DIR__, "published_models", model_id, "$(model_id).yaml")
-    petab_prob = PEtabModel(path_yaml) |> PEtabODEProblem
+    petab_prob = _get_petab_problem(model_id)
     stage_problems = PEtabCurriculumProblem(
         petab_prob, SplitCustom(splits; mode = :condition))
     mdf = petab_prob.model_info.model.petab_tables[:measurements]
@@ -79,21 +74,20 @@ function test_split_conditions_custom(model_id, splits)
     for (i, split) in pairs(splits)
         irow = findall(x -> x in split, mdf.simulationConditionId)
         mdf_tmp = mdf[irow, :]
-        test_nllh(path_yaml, mdf, mdf_tmp, petab_prob, stage_problems.petab_problems[i])
+        test_nllh(model_id, mdf, mdf_tmp, petab_prob, stage_problems.petab_problems[i])
     end
     return nothing
 end
 
 function test_split_custom_datapoints(model_id, splits)
-    path_yaml = joinpath(@__DIR__, "published_models", model_id, "$(model_id).yaml")
-    petab_prob = PEtabModel(path_yaml) |> PEtabODEProblem
+    petab_prob = _get_petab_problem(model_id)
     stage_problems = PEtabCurriculumProblem(
         petab_prob, SplitCustom(splits; mode = :datapoints))
     mdf = petab_prob.model_info.model.petab_tables[:measurements]
     mdf_sorted = mdf[sortperm(mdf.time), :]
     for (i, imax) in pairs(splits)
         mdf_tmp = mdf_sorted[1:imax, :]
-        test_nllh(path_yaml, mdf, mdf_tmp, petab_prob, stage_problems.petab_problems[i])
+        test_nllh(model_id, mdf, mdf_tmp, petab_prob, stage_problems.petab_problems[i])
     end
     return nothing
 end
@@ -106,6 +100,9 @@ end
         for n_stages in [3, 4, 6]
             test_split_uniform_time("Weber_BMC2015", n_stages)
         end
+        for n_stages in [3, 4]
+            test_split_uniform_time("mm_julia", n_stages)
+        end
         for n_stages in [2, 7]
             test_split_uniform_time("Bachmann_MSB2011", n_stages)
         end
@@ -115,6 +112,10 @@ end
         splits_test = [[15.0, 20.0, 100.0, 240.0], [13.0, 25.0, 105.0, 250.0]]
         for splits in splits_test
             test_split_custom_time("Boehm_JProteomeRes2014", splits)
+        end
+        splits_test = [[1.5, 2.5, 10.0], [1.3, 2.5, 4.0, 10.0]]
+        for splits in splits_test
+            test_split_custom_time("mm_julia", splits)
         end
     end
 
@@ -143,6 +144,9 @@ end
         for n_stages in [2, 3, 5]
             test_split_uniform_datapoints("Boehm_JProteomeRes2014", n_stages)
         end
+        for n_stages in [2, 3, 6]
+            test_split_uniform_datapoints("Boehm_JProteomeRes2014", n_stages)
+        end
         for n_stages in [3, 4, 6]
             test_split_uniform_datapoints("Weber_BMC2015", n_stages)
         end
@@ -155,6 +159,10 @@ end
         splits_test = [[3, 6, 8, 48], [20, 21, 30, 48]]
         for splits in splits_test
             test_split_custom_datapoints("Boehm_JProteomeRes2014", splits)
+        end
+        splits_test = [[3, 6, 22, 42], [20, 30, 42]]
+        for splits in splits_test
+            test_split_custom_datapoints("mm_julia", splits)
         end
     end
 end
