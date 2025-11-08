@@ -63,13 +63,12 @@ function _test_multiple_shooting(model_id, split_algorithm)
     end
 
     # Check the initial value parameters for each window can get properly set
-    # Constant value
+    # - Constant value
     xnames_u0 = PEtabTraining._get_ms_u0_xnames(prob)
     PEtabTraining.set_u0_windows!(prob, 4.0)
     @test all(prob.petab_prob_ms.xnominal[xnames_u0] .== 4.0)
     @test all(prob.petab_prob_ms.xnominal_transformed[xnames_u0] .== 4.0)
-
-    # Initial values for the first window
+    # - Initial values for the first window
     x_original = get_x(prob.original)
     PEtabTraining.set_u0_windows!(prob, x_original, :window1_u0)
     x_ms = get_x(prob.petab_prob_ms)
@@ -81,17 +80,17 @@ function _test_multiple_shooting(model_id, split_algorithm)
         @test u0_ms == u0_original
     end
 
-    # Test effect changing penalty parameter
+    # Test effect changing penalty parameter (likelihood should change)
+    # - Constant value
     nllh1 = prob.petab_prob_ms.nllh(x_ms)
     PEtabTraining.set_window_penalty!(prob, 2.0)
     nllh2 = prob.petab_prob_ms.nllh(x_ms)
     @test nllh1 != nllh2
     @test prob.petab_prob_ms.model_info.petab_parameters.nominal_value[end] ≈ √2
-
-    # Values from simulating initial values.
-    # Easiest to check comparing the likelihood between original and ms problem, where for the
-    # original problem, only difference is that duplicated points must be added. Note, due
-    # to penalty entering via a likelihood, 0.5 * log(2π) must be accounted for. Not yet
+    # - Simulating from initial values
+    # Easiest to check comparing the likelihood between original and ms problem, where for
+    # the original problem, only difference is that duplicated points must be added. Note,
+    # due to penalty entering via a likelihood, 0.5 * log(2π) must be accounted for. Not yet
     # applicable for provided as ODEProblem
     if prob.original.model_info.model.sys isa ODEProblem
         return nothing
@@ -102,6 +101,35 @@ function _test_multiple_shooting(model_id, split_algorithm)
     nllh_ms -= 0.5 * log(2π) * length(xnames_u0)
     nllh_duplicated = prob_duplicated.nllh(get_x(prob_duplicated))
     @test nllh_ms≈nllh_duplicated atol=1e-3
+    return nothing
+end
+
+function test_reference()
+    prob_original = _get_petab_problem("mm_julia")
+    prob_original.probinfo.solver.abstol = 1e-12
+    prob_original.probinfo.solver.reltol = 1e-12
+    prob_original.probinfo.solver.maxiters = Int(1e6)
+    prob_ms = PEtabMultipleShootingProblem(prob_original, SplitCustom([3.25, 5.25, 10.0]; mode = :time))
+    PEtabTraining.set_u0_windows!(prob_ms, 10.0)
+
+    measurements_df = prob_ms.petab_prob_ms.model_info.model.petab_tables[:measurements]
+    ix_not_window = findall(.!startswith.(measurements_df.observableId, "___window"))
+    x_original = get_x(prob_original)
+    x_ms = get_x(prob_ms.petab_prob_ms)
+
+    # Test a naive computation of MS loss works
+    residuals = prob_ms.petab_prob_ms.residuals(x_ms)
+    nllh_ms = prob_ms.petab_prob_ms.nllh(x_ms)
+    nllh_ms_naive = sum(@. 0.5 * log(2π) + 0.5 * residuals^2)
+    @test nllh_ms ≈ nllh_ms_naive atol=1e-8
+
+    # Check original loss can be retrieved
+    PEtabTraining.set_u0_windows!(prob_ms, x_original, :window1_simulate)
+    x_ms = get_x(prob_ms.petab_prob_ms)
+    nllh_original = prob_ms.original.nllh(x_original)
+    residuals = prob_ms.petab_prob_ms.residuals(x_ms)
+    nllh_original_naive = sum(@. 0.5 * log(2π) + 0.5 * residuals[ix_not_window]^2)
+    @test nllh_original ≈ nllh_original_naive atol=1e-6
     return nothing
 end
 
@@ -122,4 +150,6 @@ end
     end
     # Test more windows is very heavy on RAM, due to huge number of parameters added
     test_multiple_shooting("Bachmann_MSB2011", 2)
+    # Reference with manually computed ms-loss
+    test_reference()
 end

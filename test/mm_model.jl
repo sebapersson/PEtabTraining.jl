@@ -11,7 +11,7 @@ function _get_mm_model(; measurements_df::Union{DataFrame, Nothing} = nothing)
     speciemap = [:E => 50.0, :SE => 0.0, :P => 0.0]
 
     @unpack E, S = rn
-    obs_sum = PEtabObservable(S + E, 3.0)
+    obs_sum = PEtabObservable(S + E, 1.0)
     @unpack P = rn
     @parameters sigma
     obs_p = PEtabObservable(P, sigma)
@@ -20,7 +20,7 @@ function _get_mm_model(; measurements_df::Union{DataFrame, Nothing} = nothing)
     p_c1 = PEtabParameter(:c1)
     p_c2 = PEtabParameter(:c2)
     p_s0 = PEtabParameter(:S0)
-    p_sigma = PEtabParameter(:sigma)
+    p_sigma = PEtabParameter(:sigma, value = 1.0, scale = :lin)
     pest = [p_c1, p_c2, p_s0, p_sigma]
 
     if isnothing(measurements_df)
