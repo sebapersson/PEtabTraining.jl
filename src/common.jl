@@ -57,3 +57,22 @@ function _splits_to_windows(splits::Vector{<:Real})
     end
     return splits
 end
+
+function _transform_x!(prob::PEtabODEProblem)::Nothing
+    @unpack xnominal, xnominal_transformed, xnames, model_info = prob
+    @views xnominal_transformed .= PEtab.transform_x(xnominal, xnames, model_info.xindices; to_xscale = true)
+    return nothing
+end
+
+"""
+_perm_from_labels(x::ComponentVector, y::ComponentVector)
+
+Return a permutation ix such that getdata(y)[ix] == getdata(x).
+"""
+function _perm_from_labels(x::ComponentArrays.ComponentVector, y::ComponentArrays.ComponentVector)
+    ix = fill(0, length(x))
+    for (i, label) in pairs(ComponentArrays.labels(x))
+        ix[i] = only(ComponentArrays.label2index(y, label))
+    end
+    return ix
+end

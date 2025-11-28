@@ -1,38 +1,32 @@
-mutable struct PEtabMultipleShootingProblem
-    const split_algorithm::Any
-    window_penalty::Float64
-    const petab_prob_ms::PEtabODEProblem
-    const original::PEtabODEProblem
+mutable struct PEtabMSProblem
+    split_algorithm::Any
+    windows::Vector{Vector{Float64}}
+    petab_prob_ms::PEtabODEProblem
+    original::PEtabODEProblem
 end
-function PEtabMultipleShootingProblem(prob_original::PEtabODEProblem,
-        split_algorithm)::PEtabMultipleShootingProblem
+function PEtabMSProblem(prob_original::PEtabODEProblem, split_algorithm)::PEtabMSProblem
     if prob_original.model_info.simulation_info.has_pre_equilibration
         throw(ArgumentError("Multiple shooting is not supported for models with \
             pre-equilibration simulation conditions."))
     end
     windows = _split(split_algorithm, prob_original, :multiple_shooting)
+    petab_prob_ms = _get_petab_prob_ms(prob_original, windows)
+    return PEtabMSProblem(split_algorithm, windows, petab_prob_ms, prob_original)
+end
+
+function _get_petab_prob_ms(prob_original::PEtabODEProblem, windows::Vector{<:Vector{<:Real}})::PEtabODEProblem
     petab_tables_ms = deepcopy(prob_original.model_info.model.petab_tables)
 
     # Values needed from original PEtabModel
     condition_df_original = prob_original.model_info.model.petab_tables[:conditions]
     speciemap = prob_original.model_info.model.speciemap
 
-    # The first window is special, because each parameter already has an initial value,
-    # which must be assigned in the condition table.
-    PEtabTraining._add_first_window!(
-        petab_tables_ms, condition_df_original, windows[1], speciemap)
+    _add_first_window!(petab_tables_ms, condition_df_original, windows[1], speciemap)
+    _add_windows!(petab_tables_ms, condition_df_original, speciemap, windows)
+    _add_window_penalty_parameter!(petab_tables_ms)
 
-    # Initial values for each window must be added as parameters, window penalty must be
-    # added as observables + measurement points, and this must be done for each condition
-    PEtabTraining._add_windows!(petab_tables_ms, condition_df_original, speciemap, windows)
-
-    # Window penalty is added as a fixed parameters in the parameters table
-    PEtabTraining._add_window_penalty_parameter!(petab_tables_ms)
-
-    # For multiple-shooting, the entire setup can be captured in a singe PEtabModel and
-    # subsequent PEtabODEProblem. In the PEtabODEProblem simulationInfo.tstarts must be
-    # altered, to ensure that each simulations starts from the correct time-point to properly
-    # handle any model events.
+    # In the PEtabODEProblem simulationInfo.tstarts must be altered, to ensure that each
+    # simulations starts from the correct time-point to correctly handle potential events
     _filter_condition_table!(petab_tables_ms)
     model_original = prob_original.model_info.model
     if model_original.defined_in_julia == false
@@ -55,7 +49,7 @@ function PEtabMultipleShootingProblem(prob_original::PEtabODEProblem,
         t_start = minimum(windows[i_window])
         petab_prob_ms.model_info.simulation_info.tstarts[Symbol(cid)] = t_start
     end
-    return PEtabMultipleShootingProblem(split_algorithm, 1.0, petab_prob_ms, prob_original)
+    return petab_prob_ms
 end
 
 function _add_first_window!(
@@ -215,4 +209,13 @@ function _get_specie_id_from_window_id(id::Union{String, Symbol})::String
     s = string(id)
     m = match(r"^___window\d+___(.*)___(.*)$", s)
     return m.captures[2]
+end
+
+function _get_ms_u0_xnames(prob::PEtabODEProblem)::Vector{Symbol}
+    xnames = Symbol[]
+    for xname in prob.xnames
+        !occursin(r"^___window\d+___", string(xname)) && continue
+        push!(xnames, xname)
+    end
+    return xnames
 end

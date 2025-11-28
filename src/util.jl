@@ -1,92 +1,91 @@
 """
-    set_u0_windows!(prob::PEtabMultipleShootingProblem, value::Real)::Nothing
-
-Set u0 for each specie for windows the provided value
+    set_u0_windows!(prob::Union{PEtabMSProblem, PEtabMSProblem}, method::Symbol, value)
 """
-function set_u0_windows!(prob::PEtabMultipleShootingProblem, value::Real)::Nothing
-    xnames_u0 = _get_ms_u0_xnames(prob)
-    @views prob.petab_prob_ms.xnominal[xnames_u0] .= value
-    _transform_x!(prob)
+function set_u0_windows!(prob::PEtabCLMSProblem, method::Symbol, x)::Nothing
+    @unpack petab_problems, windows, original = prob
+    for i in 1:(length(petab_problems) - 1)
+        windows_stage = windows[Symbol("stage$(i)")]
+        _set_u0_windows!(petab_problems[i], original, windows_stage, method, x)
+    end
     return nothing
 end
-function set_u0_windows!(prob::PEtabMultipleShootingProblem, x, method::Symbol)::Nothing
-    @assert method in [:window1_u0, :window1_simulate]
-    if method == :window1_u0
-        _set_u0_windows_window1_u0(prob, x)
+function set_u0_windows!(prob::PEtabMSProblem, method::Symbol, x)::Nothing
+    @unpack petab_prob_ms, original, windows = prob
+    _set_u0_windows!(petab_prob_ms, original, windows, method, x)
+    return nothing
+end
+
+function _set_u0_windows!(prob::PEtabODEProblem, prob_original::PEtabODEProblem, windows::Vector{Vector{Float64}}, method::Symbol, x)::Nothing
+    @argcheck method in [:constant, :window1_u0, :window1_simulate]
+    if method == :constant
+        @argcheck isa(x, Real) "For method :constant, x must be a Real value"
     else
-        _set_u0_windows_window1_simulate(prob, x)
+        @argcheck isa(x, ComponentArrays.ComponentVector) || isa(x, AbstractVector) "For \
+            method :window1_*, x must be a ComponentVector or a Vector"
+    end
+    if method == :constant
+        _set_u0_windows_as_constant!(prob, x)
+    elseif method == :window1_u0
+        _set_u0_windows_as_window1(prob, prob_original, x)
+    else
+        _set_u0_windows_as_simulate!(prob, prob_original, windows, x)
     end
     _transform_x!(prob)
     return nothing
 end
 
-function set_window_penalty!(prob::PEtabMultipleShootingProblem, x::Real)::Nothing
-    @argcheck x≥0 "Multiple shooting window penalty parameter must be ≥0"
-    petab_parameters = prob.petab_prob_ms.model_info.petab_parameters
-    ix = findfirst(x -> x == :lambda_sqrt, petab_parameters.parameter_id)
-    petab_parameters.nominal_value[ix] = sqrt(x)
+function _set_u0_windows_as_constant!(prob::PEtabODEProblem, value::Real)::Nothing
+    u0_xnames = _get_ms_u0_xnames(prob)
+    @views prob.xnominal[u0_xnames] .= value
     return nothing
 end
 
-function _set_u0_windows_window1_u0(prob::PEtabMultipleShootingProblem, x)::Nothing
-    @unpack original, petab_prob_ms = prob
-    specie_ids = _get_specie_ids(original)
+function _set_u0_windows_as_window1(prob::PEtabODEProblem, prob_original::PEtabODEProblem, x)::Nothing
+    specie_ids = _get_specie_ids(prob_original)
     xnames_u0 = _get_ms_u0_xnames(prob)
     for xname in xnames_u0
         cid = _get_cid_from_window_id(xname)
         specie_id = _get_specie_id_from_window_id(xname)
-        u0_cid = PEtab.get_u0(x, original; retmap = false, cid = cid)
+        u0_cid = PEtab.get_u0(x, prob_original; retmap = false, cid = cid)
         u0_value = u0_cid[findfirst(x -> x == specie_id, specie_ids)]
-        @views petab_prob_ms.xnominal[xname] = u0_value
+        @views prob.xnominal[xname] = u0_value
     end
     return nothing
 end
 
-function _set_u0_windows_window1_simulate(prob::PEtabMultipleShootingProblem, x)::Nothing
-    @unpack original, petab_prob_ms = prob
-    windows = _split(prob.split_algorithm, original, :multiple_shooting)
-    specie_ids = _get_specie_ids(original)
+function _set_u0_windows_as_simulate!(prob::PEtabODEProblem, prob_original::PEtabODEProblem, windows::Vector{Vector{Float64}}, x)::Nothing
+    specie_ids = _get_specie_ids(prob_original)
     xnames_u0 = _get_ms_u0_xnames(prob)
-    cids_original = string.(original.model_info.simulation_info.conditionids[:experiment])
+    cids_original = string.(prob_original.model_info.simulation_info.conditionids[:experiment])
     for cid in cids_original
-        sol = PEtab.get_odesol(x, original; cid = cid)
+        sol = PEtab.get_odesol(x, prob_original; cid = cid)
         for xname in xnames_u0
             _cid = _get_cid_from_window_id(xname)
             _cid != cid && continue
             specie_id = _get_specie_id_from_window_id(xname)
             specie_index = findfirst(x -> x == specie_id, specie_ids)
             t0_window = minimum(windows[_get_index_from_window_id(xname)])
-            @views petab_prob_ms.xnominal[xname] = sol(t0_window)[specie_index]
+            @views prob.xnominal[xname] = sol(t0_window)[specie_index]
         end
     end
     return nothing
 end
 
-function _transform_x!(prob::PEtabMultipleShootingProblem)::Nothing
-    @unpack xnominal, xnominal_transformed, xnames, model_info = prob.petab_prob_ms
-    @views xnominal_transformed .= PEtab.transform_x(xnominal, xnames, model_info.xindices;
-        to_xscale = true)
+function set_window_penalty!(prob::PEtabCLMSProblem, x::Real)::Nothing
+    for i in 1:(length(prob.petab_problems) - 1)
+        _set_window_penalty!(prob.petab_problems[i], x)
+    end
+    return nothing
+end
+function set_window_penalty!(prob::PEtabMSProblem, x::Real)::Nothing
+    _set_window_penalty!(prob.petab_prob_ms, x)
     return nothing
 end
 
-function _get_ms_u0_xnames(prob::PEtabMultipleShootingProblem)::Vector{Symbol}
-    xnames = Symbol[]
-    for xname in prob.petab_prob_ms.xnames
-        xname in prob.original.xnames && continue
-        push!(xnames, xname)
-    end
-    return xnames
-end
-
-"""
-_perm_from_labels(x::ComponentVector, y::ComponentVector)
-
-Return a permutation ix such that getdata(y)[ix] == getdata(x).
-"""
-function _perm_from_labels(x::ComponentArrays.ComponentVector, y::ComponentArrays.ComponentVector)
-    ix = fill(0, length(x))
-    for (i, label) in pairs(ComponentArrays.labels(x))
-        ix[i] = only(ComponentArrays.label2index(y, label))
-    end
-    return ix
+function _set_window_penalty!(prob::PEtabODEProblem, x::Real)::Nothing
+    @argcheck x≥0 "Multiple shooting window penalty parameter must be ≥0"
+    petab_parameters = prob.model_info.petab_parameters
+    ix = findfirst(x -> x == :lambda_sqrt, petab_parameters.parameter_id)
+    petab_parameters.nominal_value[ix] = sqrt(x)
+    return nothing
 end

@@ -16,7 +16,7 @@ end
 function _test_multiple_shooting(model_id, split_algorithm)
     prob_original = _get_petab_problem(model_id)
 
-    prob = PEtabMultipleShootingProblem(prob_original, split_algorithm)
+    prob = PEtabMSProblem(prob_original, split_algorithm)
 
     mdf_original = prob_original.model_info.model.petab_tables[:measurements]
     mdf_ms = prob.petab_prob_ms.model_info.model.petab_tables[:measurements]
@@ -64,13 +64,13 @@ function _test_multiple_shooting(model_id, split_algorithm)
 
     # Check the initial value parameters for each window can get properly set
     # - Constant value
-    xnames_u0 = PEtabTraining._get_ms_u0_xnames(prob)
-    PEtabTraining.set_u0_windows!(prob, 4.0)
+    xnames_u0 = PEtabTraining._get_ms_u0_xnames(prob.petab_prob_ms)
+    PEtabTraining.set_u0_windows!(prob, :constant, 4.0)
     @test all(prob.petab_prob_ms.xnominal[xnames_u0] .== 4.0)
     @test all(prob.petab_prob_ms.xnominal_transformed[xnames_u0] .== 4.0)
     # - Initial values for the first window
     x_original = get_x(prob.original)
-    PEtabTraining.set_u0_windows!(prob, x_original, :window1_u0)
+    PEtabTraining.set_u0_windows!(prob, :window1_u0, x_original)
     x_ms = get_x(prob.petab_prob_ms)
     for cid in cids
         cid_original = PEtabTraining._get_cid_from_window_id(cid)
@@ -95,7 +95,7 @@ function _test_multiple_shooting(model_id, split_algorithm)
     if prob.original.model_info.model.sys isa ODEProblem
         return nothing
     end
-    PEtabTraining.set_u0_windows!(prob, x_original, :window1_simulate)
+    PEtabTraining.set_u0_windows!(prob, :window1_simulate, x_original)
     prob_duplicated = _get_prob_duplicated(model_id, prob.original, windows)
     nllh_ms = prob.petab_prob_ms.nllh(get_x(prob.petab_prob_ms))
     nllh_ms -= 0.5 * log(2π) * length(xnames_u0)
@@ -109,8 +109,8 @@ function test_reference()
     prob_original.probinfo.solver.abstol = 1e-12
     prob_original.probinfo.solver.reltol = 1e-12
     prob_original.probinfo.solver.maxiters = Int(1e6)
-    prob_ms = PEtabMultipleShootingProblem(prob_original, SplitCustom([3.25, 5.25, 10.0]; mode = :time))
-    PEtabTraining.set_u0_windows!(prob_ms, 10.0)
+    prob_ms = PEtabMSProblem(prob_original, SplitCustom([3.25, 5.25, 10.0]; mode = :time))
+    PEtabTraining.set_u0_windows!(prob_ms, :constant, 10.0)
 
     measurements_df = prob_ms.petab_prob_ms.model_info.model.petab_tables[:measurements]
     ix_not_window = findall(.!startswith.(measurements_df.observableId, "___window"))
@@ -124,7 +124,7 @@ function test_reference()
     @test nllh_ms ≈ nllh_ms_naive atol=1e-8
 
     # Check original loss can be retrieved
-    PEtabTraining.set_u0_windows!(prob_ms, x_original, :window1_simulate)
+    PEtabTraining.set_u0_windows!(prob_ms, :window1_simulate, x_original)
     x_ms = get_x(prob_ms.petab_prob_ms)
     nllh_original = prob_ms.original.nllh(x_original)
     residuals = prob_ms.petab_prob_ms.residuals(x_ms)

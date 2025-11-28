@@ -4,7 +4,7 @@ include(joinpath(@__DIR__, "helper.jl"))
 
 function test_split_uniform_time(model_id, n_stages)
     petab_prob = _get_petab_problem(model_id)
-    stage_problems = PEtabCurriculumProblem(petab_prob, SplitUniform(n_stages))
+    stage_problems = PEtabCLProblem(petab_prob, SplitUniform(n_stages))
 
     mdf = petab_prob.model_info.model.petab_tables[:measurements]
     unique_t = PEtabTraining._get_unique_timepoints(mdf)
@@ -20,7 +20,7 @@ end
 
 function test_split_uniform_datapoints(model_id, n_stages)
     petab_prob = _get_petab_problem(model_id)
-    stage_problems = PEtabCurriculumProblem(
+    stage_problems = PEtabCLProblem(
         petab_prob, SplitUniform(n_stages; mode = :datapoints))
 
     mdf_sorted = PEtabTraining._get_measurements_df_sorted(petab_prob)
@@ -36,7 +36,7 @@ end
 
 function test_split_custom_time(model_id, splits)
     petab_prob = _get_petab_problem(model_id)
-    stage_problems = PEtabCurriculumProblem(petab_prob, SplitCustom(splits; mode = :time))
+    stage_problems = PEtabCLProblem(petab_prob, SplitCustom(splits; mode = :time))
     mdf = petab_prob.model_info.model.petab_tables[:measurements]
 
     for (i, max_val) in pairs(splits)
@@ -48,7 +48,7 @@ end
 
 function test_split_uniform_conditions(model_id, n_stages)
     petab_prob = _get_petab_problem(model_id)
-    stage_problems = PEtabCurriculumProblem(
+    stage_problems = PEtabCLProblem(
         petab_prob, SplitUniform(n_stages; mode = :condition))
 
     mdf = petab_prob.model_info.model.petab_tables[:measurements]
@@ -66,7 +66,7 @@ end
 
 function test_split_conditions_custom(model_id, splits)
     petab_prob = _get_petab_problem(model_id)
-    stage_problems = PEtabCurriculumProblem(
+    stage_problems = PEtabCLProblem(
         petab_prob, SplitCustom(splits; mode = :condition))
     mdf = petab_prob.model_info.model.petab_tables[:measurements]
 
@@ -80,7 +80,7 @@ end
 
 function test_split_custom_datapoints(model_id, splits)
     petab_prob = _get_petab_problem(model_id)
-    stage_problems = PEtabCurriculumProblem(
+    stage_problems = PEtabCLProblem(
         petab_prob, SplitCustom(splits; mode = :datapoints))
     mdf = petab_prob.model_info.model.petab_tables[:measurements]
     mdf_sorted = mdf[sortperm(mdf.time), :]

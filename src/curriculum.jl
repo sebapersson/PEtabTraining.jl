@@ -1,9 +1,9 @@
-struct PEtabCurriculumProblem
+struct PEtabCLProblem
     split_algorithm::Any
     petab_problems::Vector{PEtabODEProblem}
     original::PEtabODEProblem
 end
-function PEtabCurriculumProblem(prob_original::PEtabODEProblem, split_algorithm)::PEtabCurriculumProblem
+function PEtabCLProblem(prob_original::PEtabODEProblem, split_algorithm)::PEtabCLProblem
     model_original = prob_original.model_info.model
     petab_tables = _split(split_algorithm, prob_original, :curriculum)
     petab_problems = Vector{PEtabODEProblem}(undef, split_algorithm.nsplits)
@@ -16,7 +16,7 @@ function PEtabCurriculumProblem(prob_original::PEtabODEProblem, split_algorithm)
         end
         petab_problems[i] = _PEtabODEProblem(model, prob_original)
     end
-    return PEtabCurriculumProblem(split_algorithm, petab_problems, prob_original)
+    return PEtabCLProblem(split_algorithm, petab_problems, prob_original)
 end
 function _split_curriculum(splits, mdf::DataFrame, prob::PEtabODEProblem,
         mode::Symbol)::Vector{PEtab.PEtabTables}
