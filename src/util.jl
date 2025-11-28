@@ -55,7 +55,7 @@ function _set_u0_windows_window1_simulate(prob::PEtabMultipleShootingProblem, x)
             _cid != cid && continue
             specie_id = _get_specie_id_from_window_id(xname)
             specie_index = findfirst(x -> x == specie_id, specie_ids)
-            t0_window = maximum(windows[_get_index_from_window_id(xname)])
+            t0_window = minimum(windows[_get_index_from_window_id(xname)])
             @views petab_prob_ms.xnominal[xname] = sol(t0_window)[specie_index]
         end
     end
