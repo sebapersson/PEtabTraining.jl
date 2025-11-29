@@ -16,13 +16,15 @@ end
 
 function _get_petab_prob_ms(prob_original::PEtabODEProblem, windows::Vector{<:Vector{<:Real}})::PEtabODEProblem
     petab_tables_ms = deepcopy(prob_original.model_info.model.petab_tables)
+    petab_tables_ms[:measurements] = DataFrame()
 
     # Values needed from original PEtabModel
     condition_df_original = prob_original.model_info.model.petab_tables[:conditions]
+    measurements_df_original = prob_original.model_info.model.petab_tables[:measurements]
     speciemap = prob_original.model_info.model.speciemap
 
-    _add_first_window!(petab_tables_ms, condition_df_original, windows[1], speciemap)
-    _add_windows!(petab_tables_ms, condition_df_original, speciemap, windows)
+    _add_first_window!(petab_tables_ms, measurements_df_original, condition_df_original, windows[1], speciemap)
+    _add_windows!(petab_tables_ms, measurements_df_original, condition_df_original, speciemap, windows)
     _add_window_penalty_parameter!(petab_tables_ms)
 
     # In the PEtabODEProblem simulationInfo.tstarts must be altered, to ensure that each
@@ -52,9 +54,7 @@ function _get_petab_prob_ms(prob_original::PEtabODEProblem, windows::Vector{<:Ve
     return petab_prob_ms
 end
 
-function _add_first_window!(
-        petab_tables::PEtab.PEtabTables, condition_df_original::DataFrame,
-        window::Vector{<:Real}, speciemap::Vector)::Nothing
+function _add_first_window!(petab_tables::PEtab.PEtabTables, measurements_df_original::DataFrame, condition_df_original::DataFrame, window::Vector{<:Real}, speciemap::Vector)::Nothing
     specie_ids = _get_specie_ids(speciemap)
     conditions_df = petab_tables[:conditions]
     parameters_df = petab_tables[:parameters]
@@ -76,24 +76,24 @@ function _add_first_window!(
         end
     end
 
-    # All windows must be re-named to explicitly map to a window
+    # All conditions must be re-named to explicitly map to a window
     for cid in condition_df_original.conditionId
         i_row = findfirst(x -> x == cid, conditions_df.conditionId)
         _cid = _get_window_id(cid, 1, "", :condition)
         conditions_df[i_row, :conditionId] = _cid
     end
 
-    _update_measurements!(petab_tables, condition_df_original, window, 1)
+    _update_measurements!(petab_tables, measurements_df_original, condition_df_original, window, 1)
     return nothing
 end
 
-function _add_windows!(petab_tables::PEtab.PEtabTables, condition_df_original::DataFrame, speciemap::Vector, windows::Vector{<:Vector{<:Real}})::Nothing
+function _add_windows!(petab_tables::PEtab.PEtabTables, measurements_df_original::DataFrame, condition_df_original::DataFrame, speciemap::Vector, windows::Vector{<:Vector{<:Real}})::Nothing
     specie_ids = _get_specie_ids(speciemap)
     for i_window in 2:length(windows)
         for cid in condition_df_original.conditionId
-            _add_overlap_windows!(petab_tables, cid, condition_df_original, windows[i_window], i_window, specie_ids)
+            _add_overlap_windows!(petab_tables, cid, measurements_df_original, condition_df_original, windows[i_window], i_window, specie_ids)
         end
-        _update_measurements!(petab_tables, condition_df_original, windows[i_window], i_window)
+        _update_measurements!(petab_tables, measurements_df_original, condition_df_original, windows[i_window], i_window)
     end
     return nothing
 end
@@ -107,15 +107,15 @@ function _add_window_penalty_parameter!(petab_tables::PEtab.PEtabTables)::Nothin
     return nothing
 end
 
-function _add_overlap_windows!(petab_tables::PEtab.PEtabTables, cid::String, condition_df_original::DataFrame, window::Vector{<:Real}, i_window::Integer, specie_ids::Vector{String})::Nothing
+function _add_overlap_windows!(petab_tables::PEtab.PEtabTables, cid::String, measurements_df_original::DataFrame, condition_df_original::DataFrame, window::Vector{<:Real}, i_window::Integer, specie_ids::Vector{String})::Nothing
     measurements_df = petab_tables[:measurements]
     conditions_df = petab_tables[:conditions]
     parameters_df = petab_tables[:parameters]
     observable_df = petab_tables[:observables]
 
     # If all time-points for the condition id are before the window, no need to add
-    measurements_cid_df = filter(row -> row.simulationConditionId == cid, measurements_df)
-    if all(measurements_cid_df.time .< minimum(window))
+    measurements_cid = filter(r -> r.simulationConditionId == cid, measurements_df_original)
+    if all(measurements_cid.time .< minimum(window))
         return nothing
     end
 
@@ -156,29 +156,16 @@ function _add_overlap_windows!(petab_tables::PEtab.PEtabTables, cid::String, con
     return nothing
 end
 
-function _update_measurements!(
-        petab_tables::PEtab.PEtabTables, condition_df_original::DataFrame,
-        window::Vector{<:Real}, i_window::Integer)::Nothing
-    # Measurements can occur at the edge of a window, in this case observations must be
-    # double counted in the measurement table and appear for the condition in the next
-    # windows.
+function _update_measurements!(petab_tables::PEtab.PEtabTables, measurements_df_original::DataFrame, condition_df_original::DataFrame, window::Vector{<:Real}, i_window::Integer)::Nothing
     measurements_df = petab_tables[:measurements]
     for cid in condition_df_original.conditionId
-        im_cid = findall(x -> x == cid, measurements_df.simulationConditionId)
-        im_time = findall(x -> x ≥ window[1] && x ≤ window[end], measurements_df.time)
-        im_window = intersect(im_cid, im_time)
-        _cid = _get_window_id(cid, i_window, "", :condition)
-        measurements_df[im_window, :simulationConditionId] .= _cid
+        i_cid = findall(x -> x == cid, measurements_df_original.simulationConditionId)
+        i_time = findall(x -> x ≥ window[1] && x ≤ window[end], measurements_df_original.time)
+        cid_window = _get_window_id(cid, i_window, "", :condition)
 
-        # Not applicable to duplicate observations are on last window
-        maximum(window) == maximum(measurements_df.time) && continue
-        _im_overlap = findall(x -> x == maximum(window), measurements_df.time)
-        im_overlap = intersect(_im_overlap, im_window)
-        isnothing(im_overlap) && continue
-        _cid = _get_window_id(cid, i_window + 1, "", :condition)
-        overlap_df = measurements_df[im_overlap, :] |> deepcopy
-        overlap_df[!, :simulationConditionId] .= _cid
-        append!(measurements_df, overlap_df)
+        measurements_df_tmp = measurements_df_original[intersect(i_cid, i_time), :]
+        measurements_df_tmp.simulationConditionId .= cid_window
+        append!(measurements_df, measurements_df_tmp; cols = :subset, promote = true)
     end
     return nothing
 end

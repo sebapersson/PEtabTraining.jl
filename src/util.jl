@@ -89,3 +89,35 @@ function _set_window_penalty!(prob::PEtabODEProblem, x::Real)::Nothing
     petab_parameters.nominal_value[ix] = sqrt(x)
     return nothing
 end
+
+"""
+map_x_stage(x, clms::PEtabCLMSProblem; from::Integer=1, to::Integer=2)
+
+Map input Vector `x` coming from stage `from` to the layout of stage `to` for a
+`PEtabCLMSProblem`
+
+`from` and `to` must be valid stage indices. `x` can be a `Vector` or a `ComponentVector`,
+with the ordering expected by `PEtabODEproblem` in stage `from`.
+"""
+function map_x_stage(x, clms::PEtabCLMSProblem, from::Integer = 1, to::Integer = 2)
+    @argcheck 1 ≤ from ≤ length(clms.petab_problems) "invalid `from` stage index"
+    @argcheck 1 ≤ to ≤ length(clms.petab_problems) "invalid `to` stage index"
+    @argcheck from != to
+
+    # target prototype to preserve types/ordering/defaults
+    x_to = clms.petab_problems[to].xnominal_transformed |> deepcopy
+    x_from = clms.petab_problems[from].xnominal_transformed |> deepcopy
+    if from < to
+        ix = _perm_from_labels(x_to, x_from)
+        x_to .= x[ix]
+    else
+        ix = Int64[]
+        for label in ComponentArrays.labels(x_from)
+            if label in ComponentArrays.labels(x_to)
+            push!(ix, only(ComponentArrays.label2index(x_to, label)))
+            end
+        end
+        x_to[ix] .= x
+    end
+    return x_to
+end

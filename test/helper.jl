@@ -62,3 +62,9 @@ function _get_petab_problem(model_id::String)::PEtabODEProblem
     end
     return PEtabODEProblem(model; odesolver = ODESolver(Rodas5P()))
 end
+
+function get_n_diff(prob_ms::PEtabODEProblem, prob_duplicated::PEtabODEProblem)::Integer
+    mdf_ms = prob_ms.model_info.model.petab_tables[:measurements]
+    mdf_dup = prob_duplicated.model_info.model.petab_tables[:measurements]
+    return nrow(mdf_ms) - nrow(mdf_dup)
+end

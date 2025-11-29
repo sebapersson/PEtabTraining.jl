@@ -12,6 +12,10 @@ end
     include("multiple_shooting.jl")
 end
 
+@safetestset "Curriculum + multiple shooting" begin
+    include("cl_ms_combined.jl")
+end
+
 @safetestset "Util functions" begin
     include("util.jl")
 end
