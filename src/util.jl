@@ -15,7 +15,8 @@ function set_u0_windows!(prob::PEtabMSProblem, method::Symbol, x)::Nothing
     return nothing
 end
 
-function _set_u0_windows!(prob::PEtabODEProblem, prob_original::PEtabODEProblem, windows::Vector{Vector{Float64}}, method::Symbol, x)::Nothing
+function _set_u0_windows!(prob::PEtabODEProblem, prob_original::PEtabODEProblem,
+        windows::Vector{Vector{Float64}}, method::Symbol, x)::Nothing
     @argcheck method in [:constant, :window1_u0, :window1_simulate]
     if method == :constant
         @argcheck isa(x, Real) "For method :constant, x must be a Real value"
@@ -53,7 +54,9 @@ function _set_u0_windows_as_window1(prob::PEtabODEProblem, prob_original::PEtabO
     return nothing
 end
 
-function _set_u0_windows_as_simulate!(prob::PEtabODEProblem, prob_original::PEtabODEProblem, windows::Vector{Vector{Float64}}, x)::Nothing
+function _set_u0_windows_as_simulate!(
+        prob::PEtabODEProblem, prob_original::PEtabODEProblem,
+        windows::Vector{Vector{Float64}}, x)::Nothing
     specie_ids = _get_specie_ids(prob_original)
     xnames_u0 = _get_ms_u0_xnames(prob)
     cids_original = string.(prob_original.model_info.simulation_info.conditionids[:experiment])
@@ -114,7 +117,7 @@ function map_x_stage(x, clms::PEtabCLMSProblem, from::Integer = 1, to::Integer =
         ix = Int64[]
         for label in ComponentArrays.labels(x_from)
             if label in ComponentArrays.labels(x_to)
-            push!(ix, only(ComponentArrays.label2index(x_to, label)))
+                push!(ix, only(ComponentArrays.label2index(x_to, label)))
             end
         end
         x_to[ix] .= x

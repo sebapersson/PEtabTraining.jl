@@ -1,10 +1,11 @@
 include(joinpath(@__DIR__, "mm_model.jl"))
 include(joinpath(@__DIR__, "ude_model.jl"))
 
-function test_nllh(model_id, mdf::DataFrame, mdf_tmp::DataFrame, petab_prob, stage_problems_i)::Nothing
+function test_nllh(
+        model_id, mdf::DataFrame, mdf_tmp::DataFrame, petab_prob, stage_problems_i)::Nothing
     if model_id == "mm_julia"
         petab_prob_ref = _get_mm_model(; measurements_df = mdf_tmp) |>
-            PEtabODEProblem
+                         PEtabODEProblem
     elseif model_id == "ude"
         model = _get_lv_ude_model(; measurements_df = mdf_tmp)
         petab_prob_ref = PEtabODEProblem(model; odesolver = ODESolver(Rodas5P()))
@@ -46,7 +47,8 @@ function _get_prob_duplicated(model_id, prob::PEtabODEProblem, windows)
     else
         tables_duplicate = deepcopy(prob.model_info.model.petab_tables)
         tables_duplicate[:measurements] = mdf_duplicate
-        model = PEtab._PEtabModel(model_original.paths, tables_duplicate, false, false, true, false, model_original.ml_models)
+        model = PEtab._PEtabModel(model_original.paths, tables_duplicate, false,
+            false, true, false, model_original.ml_models)
     end
     return PEtabODEProblem(model)
 end

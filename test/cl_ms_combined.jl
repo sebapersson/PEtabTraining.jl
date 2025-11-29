@@ -13,7 +13,7 @@ function test_ml_cl(model_id, n_splits)
         windows_stage = prob_cl_ms.windows[Symbol("stage$i")]
         windows_stage_prev = prob_cl_ms.windows[Symbol("stage$(i-1)")]
         for j in eachindex(windows_stage)
-            @test windows_stage[j] == unique(reduce(vcat, windows_stage_prev[j:(j+1)]))
+            @test windows_stage[j] == unique(reduce(vcat, windows_stage_prev[j:(j + 1)]))
         end
     end
     n_windows = length(keys(prob_cl_ms.windows))
@@ -22,7 +22,7 @@ function test_ml_cl(model_id, n_splits)
     # Test setting initial window values
     # Constant
     PEtabTraining.set_u0_windows!(prob_cl_ms, :constant, 4.0)
-    for i in 1:(n_windows-1)
+    for i in 1:(n_windows - 1)
         _prob = prob_cl_ms.petab_problems[i]
         xnames_u0 = PEtabTraining._get_ms_u0_xnames(_prob)
         @test all(_prob.xnominal[xnames_u0] .== 4.0)
@@ -31,7 +31,7 @@ function test_ml_cl(model_id, n_splits)
     # Initial values for the first window
     x_original = get_x(prob_cl_ms.original)
     PEtabTraining.set_u0_windows!(prob_cl_ms, :window1_u0, x_original)
-    for i in 1:(n_windows-1)
+    for i in 1:(n_windows - 1)
         _prob = prob_cl_ms.petab_problems[i]
         x_ms = get_x(_prob)
         cids = _prob.model_info.model.petab_tables[:conditions].conditionId |> unique
@@ -44,7 +44,7 @@ function test_ml_cl(model_id, n_splits)
     end
 
     # Test setting MS penalty
-    for i in 1:(n_windows-1)
+    for i in 1:(n_windows - 1)
         _prob = prob_cl_ms.petab_problems[i]
         x_ms = get_x(_prob)
         nllh1 = _prob.nllh(x_ms)
@@ -55,8 +55,8 @@ function test_ml_cl(model_id, n_splits)
     end
 
     # Check that an x-vector can be mapped between stages with util functions
-    for i in 2:(n_windows-1)
-        x_from = deepcopy(get_x(prob_cl_ms.petab_problems[i-1]))
+    for i in 2:(n_windows - 1)
+        x_from = deepcopy(get_x(prob_cl_ms.petab_problems[i - 1]))
         x_from .= 0.5
         x_to = PEtabTraining.map_x_stage(x_from, prob_cl_ms, i-1, i)
         for (i, label) in pairs(ComponentArrays.labels(x_from))
@@ -81,7 +81,7 @@ function test_ml_cl(model_id, n_splits)
     if prob_original.model_info.model.sys isa ODEProblem
         return nothing
     end
-    for i in 1:(n_windows-1)
+    for i in 1:(n_windows - 1)
         x_original = get_x(prob_original)
         _prob = prob_cl_ms.petab_problems[i]
         windows = prob_cl_ms.windows[Symbol("stage$i")]

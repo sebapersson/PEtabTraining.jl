@@ -13,13 +13,13 @@ function PEtabCLMSProblem(prob_original::PEtabODEProblem, split_algorithm)::PEta
         windows_stage_prev = windows_stages[Symbol("stage$(i-1)")]
         windows_stage = Vector{Vector{Float64}}(undef, n_windows - i + 1)
         for j in eachindex(windows_stage)
-            windows_stage[j] = unique(reduce(vcat, windows_stage_prev[j:j+1]))
+            windows_stage[j] = unique(reduce(vcat, windows_stage_prev[j:(j + 1)]))
         end
         windows_stages[Symbol("stage$(i)")] = windows_stage
     end
 
     petab_problems = Vector{PEtabODEProblem}(undef, n_windows)
-    for i in 1:(n_windows-1)
+    for i in 1:(n_windows - 1)
         windows_stage = windows_stages[Symbol("stage$(i)")]
         petab_problems[i] = PEtabTraining._get_petab_prob_ms(prob_original, windows_stage)
     end

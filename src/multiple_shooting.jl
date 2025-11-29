@@ -23,8 +23,10 @@ function _get_petab_prob_ms(prob_original::PEtabODEProblem, windows::Vector{<:Ve
     measurements_df_original = prob_original.model_info.model.petab_tables[:measurements]
     speciemap = prob_original.model_info.model.speciemap
 
-    _add_first_window!(petab_tables_ms, measurements_df_original, condition_df_original, windows[1], speciemap)
-    _add_windows!(petab_tables_ms, measurements_df_original, condition_df_original, speciemap, windows)
+    _add_first_window!(petab_tables_ms, measurements_df_original,
+        condition_df_original, windows[1], speciemap)
+    _add_windows!(petab_tables_ms, measurements_df_original,
+        condition_df_original, speciemap, windows)
     _add_window_penalty_parameter!(petab_tables_ms)
 
     # In the PEtabODEProblem simulationInfo.tstarts must be altered, to ensure that each
@@ -32,9 +34,15 @@ function _get_petab_prob_ms(prob_original::PEtabODEProblem, windows::Vector{<:Ve
     _filter_condition_table!(petab_tables_ms)
     model_original = prob_original.model_info.model
     if model_original.defined_in_julia == false
-        model_ms = PEtab._PEtabModel(prob_original.model_info.model.paths, petab_tables_ms, false, false, true, false, prob_original.model_info.model.ml_models)
+        model_ms = PEtab._PEtabModel(
+            prob_original.model_info.model.paths, petab_tables_ms, false,
+            false, true, false, prob_original.model_info.model.ml_models)
     else
-        model_ms = PEtab._PEtabModel(model_original.sys, petab_tables_ms, model_original.name, model_original.speciemap, model_original.parametermap, model_original.callbacks, model_original.ml_models, false; float_tspan = model_original.float_tspan)
+        model_ms = PEtab._PEtabModel(
+            model_original.sys, petab_tables_ms, model_original.name,
+            model_original.speciemap, model_original.parametermap,
+            model_original.callbacks, model_original.ml_models,
+            false; float_tspan = model_original.float_tspan)
     end
 
     @unpack (solver, solver_gradient, ss_solver, ss_solver_gradient, gradient_method,
@@ -54,7 +62,10 @@ function _get_petab_prob_ms(prob_original::PEtabODEProblem, windows::Vector{<:Ve
     return petab_prob_ms
 end
 
-function _add_first_window!(petab_tables::PEtab.PEtabTables, measurements_df_original::DataFrame, condition_df_original::DataFrame, window::Vector{<:Real}, speciemap::Vector)::Nothing
+function _add_first_window!(
+        petab_tables::PEtab.PEtabTables, measurements_df_original::DataFrame,
+        condition_df_original::DataFrame,
+        window::Vector{<:Real}, speciemap::Vector)::Nothing
     specie_ids = _get_specie_ids(speciemap)
     conditions_df = petab_tables[:conditions]
     parameters_df = petab_tables[:parameters]
@@ -83,17 +94,23 @@ function _add_first_window!(petab_tables::PEtab.PEtabTables, measurements_df_ori
         conditions_df[i_row, :conditionId] = _cid
     end
 
-    _update_measurements!(petab_tables, measurements_df_original, condition_df_original, window, 1)
+    _update_measurements!(
+        petab_tables, measurements_df_original, condition_df_original, window, 1)
     return nothing
 end
 
-function _add_windows!(petab_tables::PEtab.PEtabTables, measurements_df_original::DataFrame, condition_df_original::DataFrame, speciemap::Vector, windows::Vector{<:Vector{<:Real}})::Nothing
+function _add_windows!(
+        petab_tables::PEtab.PEtabTables, measurements_df_original::DataFrame,
+        condition_df_original::DataFrame, speciemap::Vector,
+        windows::Vector{<:Vector{<:Real}})::Nothing
     specie_ids = _get_specie_ids(speciemap)
     for i_window in 2:length(windows)
         for cid in condition_df_original.conditionId
-            _add_overlap_windows!(petab_tables, cid, measurements_df_original, condition_df_original, windows[i_window], i_window, specie_ids)
+            _add_overlap_windows!(petab_tables, cid, measurements_df_original,
+                condition_df_original, windows[i_window], i_window, specie_ids)
         end
-        _update_measurements!(petab_tables, measurements_df_original, condition_df_original, windows[i_window], i_window)
+        _update_measurements!(petab_tables, measurements_df_original,
+            condition_df_original, windows[i_window], i_window)
     end
     return nothing
 end
@@ -107,7 +124,10 @@ function _add_window_penalty_parameter!(petab_tables::PEtab.PEtabTables)::Nothin
     return nothing
 end
 
-function _add_overlap_windows!(petab_tables::PEtab.PEtabTables, cid::String, measurements_df_original::DataFrame, condition_df_original::DataFrame, window::Vector{<:Real}, i_window::Integer, specie_ids::Vector{String})::Nothing
+function _add_overlap_windows!(
+        petab_tables::PEtab.PEtabTables, cid::String, measurements_df_original::DataFrame,
+        condition_df_original::DataFrame, window::Vector{<:Real},
+        i_window::Integer, specie_ids::Vector{String})::Nothing
     measurements_df = petab_tables[:measurements]
     conditions_df = petab_tables[:conditions]
     parameters_df = petab_tables[:parameters]
@@ -156,7 +176,10 @@ function _add_overlap_windows!(petab_tables::PEtab.PEtabTables, cid::String, mea
     return nothing
 end
 
-function _update_measurements!(petab_tables::PEtab.PEtabTables, measurements_df_original::DataFrame, condition_df_original::DataFrame, window::Vector{<:Real}, i_window::Integer)::Nothing
+function _update_measurements!(
+        petab_tables::PEtab.PEtabTables, measurements_df_original::DataFrame,
+        condition_df_original::DataFrame,
+        window::Vector{<:Real}, i_window::Integer)::Nothing
     measurements_df = petab_tables[:measurements]
     for cid in condition_df_original.conditionId
         i_cid = findall(x -> x == cid, measurements_df_original.simulationConditionId)

@@ -10,9 +10,14 @@ function PEtabCLProblem(prob_original::PEtabODEProblem, split_algorithm)::PEtabC
     for i in eachindex(petab_tables)
         _filter_condition_table!(petab_tables[i])
         if prob_original.model_info.model.defined_in_julia == false
-            model = PEtab._PEtabModel(model_original.paths, petab_tables[i], false, false, true, false, model_original.ml_models)
+            model = PEtab._PEtabModel(model_original.paths, petab_tables[i], false,
+                false, true, false, model_original.ml_models)
         else
-            model = PEtab._PEtabModel(model_original.sys, petab_tables[i], model_original.name, model_original.speciemap, model_original.parametermap, model_original.callbacks, model_original.ml_models, false; float_tspan = model_original.float_tspan)
+            model = PEtab._PEtabModel(
+                model_original.sys, petab_tables[i], model_original.name,
+                model_original.speciemap, model_original.parametermap,
+                model_original.callbacks, model_original.ml_models,
+                false; float_tspan = model_original.float_tspan)
         end
         petab_problems[i] = _PEtabODEProblem(model, prob_original)
     end
