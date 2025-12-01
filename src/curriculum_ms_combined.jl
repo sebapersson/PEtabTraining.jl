@@ -26,3 +26,5 @@ function PEtabCLMSProblem(prob_original::PEtabODEProblem, split_algorithm)::PEta
     petab_problems[n_windows] = prob_original
     return PEtabCLMSProblem(split_algorithm, windows_stages, petab_problems, prob_original)
 end
+# TODO: For CL+MS, for custom splits windows should include all covered data-points by
+# TODO: said window.

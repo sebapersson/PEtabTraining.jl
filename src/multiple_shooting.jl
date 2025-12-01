@@ -183,7 +183,7 @@ function _update_measurements!(
     measurements_df = petab_tables[:measurements]
     for cid in condition_df_original.conditionId
         i_cid = findall(x -> x == cid, measurements_df_original.simulationConditionId)
-        i_time = findall(x -> x ≥ window[1] && x ≤ window[end], measurements_df_original.time)
+        i_time = findall(x -> x ≥ minimum(window) && x ≤ maximum(window), measurements_df_original.time)
         cid_window = _get_window_id(cid, i_window, "", :condition)
 
         measurements_df_tmp = measurements_df_original[intersect(i_cid, i_time), :]

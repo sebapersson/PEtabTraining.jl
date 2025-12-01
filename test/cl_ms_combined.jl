@@ -2,13 +2,21 @@ using CSV, DataFrames, PEtab, PEtabTraining, Test
 
 include(joinpath(@__DIR__, "helper.jl"))
 
-function test_ml_cl(model_id, n_splits)
+function test_ml_cl(model_id, n_splits::Integer)
+    split_algorithm = SplitUniform(n_splits)
+    return _test_ml_cl(model_id, split_algorithm)
+end
+function test_ml_cl(model_id, windows::Vector)
+    split_algorithm = SplitCustom(windows; mode = :time)
+    return _test_ml_cl(model_id, split_algorithm)
+end
+
+function _test_ml_cl(model_id, split_algorithm)
     prob_original = _get_petab_problem(model_id)
-    prob_cl_ms = PEtabCLMSProblem(prob_original, SplitUniform(n_splits))
+    prob_cl_ms = PEtabCLMSProblem(prob_original, split_algorithm)
 
     # Test that windows are created correctly
     mdf = prob_original.model_info.model.petab_tables[:measurements]
-    t_unique = PEtabTraining._get_unique_timepoints(mdf)
     for i in length(prob_cl_ms.windows):-1:2
         windows_stage = prob_cl_ms.windows[Symbol("stage$i")]
         windows_stage_prev = prob_cl_ms.windows[Symbol("stage$(i-1)")]
@@ -17,7 +25,13 @@ function test_ml_cl(model_id, n_splits)
         end
     end
     n_windows = length(keys(prob_cl_ms.windows))
-    @test t_unique == prob_cl_ms.windows[Symbol("stage$(n_windows)")][1]
+    t_uni = PEtabTraining._get_unique_timepoints(mdf)
+    if split_algorithm isa SplitUniform
+        @test t_uni == prob_cl_ms.windows[Symbol("stage$(n_windows)")][1]
+    else
+        @test t_uni[1] == prob_cl_ms.windows[Symbol("stage$(n_windows)")][1][1]
+        @test t_uni[end] ≤ prob_cl_ms.windows[Symbol("stage$(n_windows)")][1][end]
+    end
 
     # Test setting initial window values
     # Constant
@@ -101,6 +115,10 @@ end
         test_ml_cl("Boehm_JProteomeRes2014", n)
         test_ml_cl("mm_julia", n)
         test_ml_cl("ude", n)
+    end
+    splits_test = [[15.0, 40.0, 100.0, 240.0], [13.0, 25.0, 105.0, 250.0]]
+    for split_test in splits_test
+        test_ml_cl("Boehm_JProteomeRes2014", split_test)
     end
     for n in [2, 4]
         test_ml_cl("Fujita_SciSignal2010", n)
