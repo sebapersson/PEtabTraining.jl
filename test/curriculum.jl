@@ -92,6 +92,19 @@ function test_split_custom_datapoints(model_id, splits)
     return nothing
 end
 
+function test_output_regularization()
+    petab_prob = _get_petab_problem("ude")
+    cl_prob = PEtabCLProblem(petab_prob, SplitUniform(4); regularization_obs = :reg_o)
+    for prob in cl_prob.petab_problems
+        measurements_stage = prob.model_info.model.petab_tables[:measurements]
+        @test "reg_o" in measurements_stage.observableId
+        i_rows = findall(x -> x == "reg_o", measurements_stage.observableId)
+        @test length(i_rows) == 1
+        @test measurements_stage.time[i_rows[1]] == maximum(measurements_stage.time)
+    end
+    return nothing
+end
+
 @testset "Curriculum learning" begin
     @testset "Uniform splitting time" begin
         for n_stages in [2, 3, 5]
@@ -167,5 +180,9 @@ end
         for splits in splits_test
             test_split_custom_datapoints("mm_julia", splits)
         end
+    end
+
+    @testset "Output regularization" begin
+        test_output_regularization()
     end
 end

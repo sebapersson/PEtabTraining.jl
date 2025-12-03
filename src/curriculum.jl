@@ -2,10 +2,12 @@ struct PEtabCLProblem
     split_algorithm::Any
     petab_problems::Vector{PEtabODEProblem}
     original::PEtabODEProblem
+    regularization_obs::Symbol
 end
-function PEtabCLProblem(prob_original::PEtabODEProblem, split_algorithm)::PEtabCLProblem
+function PEtabCLProblem(prob_original::PEtabODEProblem, split_algorithm; regularization_obs::Union{Nothing, String, Symbol} = nothing)::PEtabCLProblem
     model_original = prob_original.model_info.model
     petab_tables = _split(split_algorithm, prob_original, :curriculum)
+    _cl_adjust_ml_output_regularization!(petab_tables, regularization_obs, prob_original)
     petab_problems = Vector{PEtabODEProblem}(undef, split_algorithm.nsplits)
     for i in eachindex(petab_tables)
         _filter_condition_table!(petab_tables[i])
@@ -21,10 +23,11 @@ function PEtabCLProblem(prob_original::PEtabODEProblem, split_algorithm)::PEtabC
         end
         petab_problems[i] = _PEtabODEProblem(model, prob_original)
     end
-    return PEtabCLProblem(split_algorithm, petab_problems, prob_original)
+    regularization_obs = isnothing(regularization_obs) ? :none : regularization_obs
+    return PEtabCLProblem(split_algorithm, petab_problems, prob_original, regularization_obs)
 end
-function _split_curriculum(splits, mdf::DataFrame, prob::PEtabODEProblem,
-        mode::Symbol)::Vector{PEtab.PEtabTables}
+
+function _split_curriculum(splits, mdf::DataFrame, prob::PEtabODEProblem, mode::Symbol)::Vector{PEtab.PEtabTables}
     @assert mode in [:datapoints, :time, :conditions]
     out = Vector{PEtab.PEtabTables}(undef, length(splits))
     if mode in [:datapoints, :time]
@@ -45,4 +48,43 @@ function _split_curriculum(splits, mdf::DataFrame, prob::PEtabODEProblem,
         end
     end
     return out
+end
+
+function _cl_adjust_ml_output_regularization!(petab_tables, regularization_obs::Union{String, Symbol, Nothing}, prob_original::PEtabODEProblem)::Nothing
+    isnothing(regularization_obs) && return nothing
+    regularization_obs = string(regularization_obs)
+
+    measurements_original = prob_original.model_info.model.petab_tables[:measurements]
+    observables_original = prob_original.model_info.model.petab_tables[:observables]
+    conditions_original = prob_original.model_info.model.petab_tables[:conditions]
+    @argcheck regularization_obs in observables_original.observableId "observableId \
+        $(regularization_obs)must appear as an observable among the observables"
+    @argcheck regularization_obs in measurements_original.observableId "observableId \
+        $(regularization_obs) must appear for at least one measurement in the measurement \
+        table"
+
+    for i in eachindex(petab_tables)
+        measurements_stage = petab_tables[i][:measurements]
+        for cid in conditions_original.conditionId
+            measurements_stage_cid = filter(r -> r.simulationConditionId == cid, measurements_stage)
+            if isempty(measurements_stage_cid)
+                continue
+            end
+
+            # All conditions are not required to have output regularization
+            measurements_cid_original = filter(r -> r.simulationConditionId == cid, measurements_original)
+            if !(regularization_obs in measurements_cid_original.observableId)
+                continue
+            end
+
+            if regularization_obs in measurements_stage_cid.observableId
+                continue
+            end
+
+            row_reg = filter(r -> r.observableId == regularization_obs, measurements_cid_original)[1, :]
+            row_reg.time = maximum(measurements_stage_cid.time)
+            append!(measurements_stage, DataFrame(row_reg), promote = true, cols = :subset)
+        end
+    end
+    return nothing
 end
