@@ -93,7 +93,7 @@ function test_split_custom_datapoints(model_id, splits)
 end
 
 function test_output_regularization()
-    petab_prob = _get_petab_problem("ude")
+    petab_prob = _get_petab_problem("ude"; include_regularization = true)
     cl_prob = PEtabCLProblem(petab_prob, SplitUniform(4); regularization_obs = :reg_o)
     for prob in cl_prob.petab_problems
         measurements_stage = prob.model_info.model.petab_tables[:measurements]

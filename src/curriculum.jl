@@ -5,6 +5,8 @@ struct PEtabCLProblem
     regularization_obs::Symbol
 end
 function PEtabCLProblem(prob_original::PEtabODEProblem, split_algorithm; regularization_obs::Union{Nothing, String, Symbol} = nothing)::PEtabCLProblem
+    _check_regularization_obs(regularization_obs, prob_original)
+
     model_original = prob_original.model_info.model
     petab_tables = _split(split_algorithm, prob_original, :curriculum)
     _cl_adjust_ml_output_regularization!(petab_tables, regularization_obs, prob_original)
@@ -55,14 +57,7 @@ function _cl_adjust_ml_output_regularization!(petab_tables, regularization_obs::
     regularization_obs = string(regularization_obs)
 
     measurements_original = prob_original.model_info.model.petab_tables[:measurements]
-    observables_original = prob_original.model_info.model.petab_tables[:observables]
     conditions_original = prob_original.model_info.model.petab_tables[:conditions]
-    @argcheck regularization_obs in observables_original.observableId "observableId \
-        $(regularization_obs)must appear as an observable among the observables"
-    @argcheck regularization_obs in measurements_original.observableId "observableId \
-        $(regularization_obs) must appear for at least one measurement in the measurement \
-        table"
-
     for i in eachindex(petab_tables)
         measurements_stage = petab_tables[i][:measurements]
         for cid in conditions_original.conditionId

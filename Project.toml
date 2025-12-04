@@ -17,6 +17,7 @@ SimpleUnPack = "ce78b400-467f-4804-87d8-8f486da07d0a"
 [compat]
 Catalyst = "15.0.8"
 ComponentArrays = "0.15.30"
+LinearAlgebra = "1.10"
 Lux = "1.24.0"
 OrdinaryDiffEqRosenbrock = "1.11.0"
 PEtab = "3.10.0"
@@ -24,8 +25,9 @@ Random = "1.11.0"
 SimpleUnPack = "1.1.0"
 
 [extras]
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 SafeTestsets = "1bc83da4-3b8d-516f-aca4-4fe02f6d838f"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["SafeTestsets", "Test"]
+test = ["LinearAlgebra", "SafeTestsets", "Test"]

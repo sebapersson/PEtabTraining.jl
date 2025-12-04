@@ -1,5 +1,5 @@
 using ComponentArrays, Lux
-import Random
+import LinearAlgebra, Random
 
 function _lv_ude_function_reg!(du, u, p, t, ml_models)
     prey, predator = u
@@ -14,14 +14,14 @@ function _lv_ude_function_reg!(du, u, p, t, ml_models)
     return nothing
 end
 
-function _get_lv_ude_model(; measurements_df::Union{DataFrame, Nothing} = nothing)
+function _get_lv_ude_model(; measurements_df::Union{DataFrame, Nothing} = nothing, include_regularization::Bool = false)
     rng = Random.MersenneTwister(42)
     lv_net = Lux.Chain(Dense(2 => 5, Lux.tanh),
         Dense(5 => 5, Lux.tanh),
         Dense(5 => 2)) |> f64
     ml_models = Dict(:net1 => MLModel(lv_net; static = false))
     lv_ude_function! = let _ml_models = ml_models
-        (du, u, p, t) -> _lv_ude_function!(du, u, p, t, _ml_models)
+        (du, u, p, t) -> _lv_ude_function_reg!(du, u, p, t, _ml_models)
     end
 
     pnn = Lux.initialparameters(rng, lv_net) |> ComponentArray |> f64
@@ -39,7 +39,7 @@ function _get_lv_ude_model(; measurements_df::Union{DataFrame, Nothing} = nothin
 
     obs_prey = PEtabObservable(:prey, 1.0)
     obs_predator = PEtabObservable(:predator, 1.0)
-    obs_reg = PEtabObservable("1e-6 * lambda_reg * (nn_norm / TMAX)^2", 1.0)
+    obs_reg = PEtabObservable("1e-6 * lambda_reg * (nn_norm)^2", 1.0)
     obs = Dict("prey_o" => obs_prey, "predator_o" => obs_predator, "reg_o" => obs_reg)
 
     if isnothing(measurements_df)
@@ -48,7 +48,9 @@ function _get_lv_ude_model(; measurements_df::Union{DataFrame, Nothing} = nothin
     else
         training_data = measurements_df
     end
-    df_reg = DataFrame(time = [maximum(training_data.time)], measurement = [0.0], observableId = ["reg_o"])
-    training_data = vcat(training_data, df_reg)
+    if include_regularization
+        df_reg = DataFrame(time = [maximum(training_data.time)], measurement = [0.0], observableId = ["reg_o"])
+        training_data = vcat(training_data, df_reg)
+    end
     return PEtabModel(ude_problem, obs, training_data, pest; ml_models = ml_models)
 end

@@ -53,11 +53,11 @@ function _get_prob_duplicated(model_id, prob::PEtabODEProblem, windows)
     return PEtabODEProblem(model)
 end
 
-function _get_petab_problem(model_id::String)::PEtabODEProblem
+function _get_petab_problem(model_id::String; include_regularization::Bool = false)::PEtabODEProblem
     if model_id == "mm_julia"
         model = _get_mm_model()
     elseif model_id == "ude"
-        model = _get_lv_ude_model()
+        model = _get_lv_ude_model(; include_regularization = include_regularization)
     else
         path_yaml = joinpath(@__DIR__, "published_models", model_id, "$(model_id).yaml")
         model = PEtabModel(path_yaml)
@@ -69,4 +69,22 @@ function get_n_diff(prob_ms::PEtabODEProblem, prob_duplicated::PEtabODEProblem):
     mdf_ms = prob_ms.model_info.model.petab_tables[:measurements]
     mdf_dup = prob_duplicated.model_info.model.petab_tables[:measurements]
     return nrow(mdf_ms) - nrow(mdf_dup)
+end
+
+function test_output_regularization_ms_prob(prob::PEtabODEProblem)::Nothing
+    conditions = prob.model_info.model.petab_tables[:conditions]
+    measurements = prob.model_info.model.petab_tables[:measurements]
+    for condition_id in conditions.conditionId
+        measurements_condition = filter(r -> r.simulationConditionId == condition_id, measurements)
+        @test "reg_o" in measurements_condition.observableId
+        i_rows = findall(x -> x == "reg_o", measurements_condition.observableId)
+        @test length(i_rows) == 1
+        @test measurements_condition.time[i_rows[1]] == maximum(measurements_condition.time)
+    end
+    # Sanity check nllh can be evaluated and ODE is correctly initialized
+    @test !isinf(prob.nllh(get_x(prob)))
+    for sol in values(prob.model_info.simulation_info.odesols)
+        @test sol.prob.u0[end] == 0
+    end
+    return nothing
 end

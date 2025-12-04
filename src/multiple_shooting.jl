@@ -4,29 +4,32 @@ mutable struct PEtabMSProblem
     petab_prob_ms::PEtabODEProblem
     original::PEtabODEProblem
 end
-function PEtabMSProblem(prob_original::PEtabODEProblem, split_algorithm)::PEtabMSProblem
+function PEtabMSProblem(prob_original::PEtabODEProblem, split_algorithm; regularization_obs::Union{Nothing, String, Symbol} = nothing, regularization_specie::Union{Nothing, String, Symbol} = nothing)::PEtabMSProblem
+    _check_regularization_specie(regularization_obs, regularization_specie)
+
     if prob_original.model_info.simulation_info.has_pre_equilibration
         throw(ArgumentError("Multiple shooting is not supported for models with \
             pre-equilibration simulation conditions."))
     end
     windows = _split(split_algorithm, prob_original, :multiple_shooting)
-    petab_prob_ms = _get_petab_prob_ms(prob_original, windows)
+    petab_prob_ms = _get_petab_prob_ms(prob_original, windows, _string(regularization_obs), _string(regularization_specie))
     return PEtabMSProblem(split_algorithm, windows, petab_prob_ms, prob_original)
 end
 
-function _get_petab_prob_ms(prob_original::PEtabODEProblem, windows::Vector{<:Vector{<:Real}})::PEtabODEProblem
+function _get_petab_prob_ms(prob_original::PEtabODEProblem, windows::Vector{<:Vector{<:Real}}, regularization_obs::Union{Nothing, String}, regularization_specie::Union{Nothing, String})::PEtabODEProblem
+    _check_regularization_obs(regularization_obs, prob_original)
+
     petab_tables_ms = deepcopy(prob_original.model_info.model.petab_tables)
     petab_tables_ms[:measurements] = DataFrame()
 
     # Values needed from original PEtabModel
     condition_df_original = prob_original.model_info.model.petab_tables[:conditions]
-    measurements_df_original = prob_original.model_info.model.petab_tables[:measurements]
+    measurements_original = prob_original.model_info.model.petab_tables[:measurements]
     speciemap = prob_original.model_info.model.speciemap
 
-    _add_first_window!(petab_tables_ms, measurements_df_original,
-        condition_df_original, windows[1], speciemap)
-    _add_windows!(petab_tables_ms, measurements_df_original,
-        condition_df_original, speciemap, windows)
+    _add_first_window!(petab_tables_ms, measurements_original,
+        condition_df_original, windows[1], speciemap, regularization_obs)
+    _add_windows!(petab_tables_ms, measurements_original, condition_df_original, speciemap, windows, regularization_obs, regularization_specie)
     _add_window_penalty_parameter!(petab_tables_ms)
 
     # In the PEtabODEProblem simulationInfo.tstarts must be altered, to ensure that each
@@ -62,10 +65,7 @@ function _get_petab_prob_ms(prob_original::PEtabODEProblem, windows::Vector{<:Ve
     return petab_prob_ms
 end
 
-function _add_first_window!(
-        petab_tables::PEtab.PEtabTables, measurements_df_original::DataFrame,
-        condition_df_original::DataFrame,
-        window::Vector{<:Real}, speciemap::Vector)::Nothing
+function _add_first_window!(petab_tables::PEtab.PEtabTables, measurements_original::DataFrame, condition_df_original::DataFrame, window::Vector{<:Real}, speciemap::Vector, regularization_obs)::Nothing
     specie_ids = _get_specie_ids(speciemap)
     conditions_df = petab_tables[:conditions]
     parameters_df = petab_tables[:parameters]
@@ -94,23 +94,17 @@ function _add_first_window!(
         conditions_df[i_row, :conditionId] = _cid
     end
 
-    _update_measurements!(
-        petab_tables, measurements_df_original, condition_df_original, window, 1)
+    _update_measurements!(petab_tables, measurements_original, condition_df_original, window, 1, regularization_obs)
     return nothing
 end
 
-function _add_windows!(
-        petab_tables::PEtab.PEtabTables, measurements_df_original::DataFrame,
-        condition_df_original::DataFrame, speciemap::Vector,
-        windows::Vector{<:Vector{<:Real}})::Nothing
+function _add_windows!(petab_tables::PEtab.PEtabTables, measurements_original::DataFrame, condition_df_original::DataFrame, speciemap::Vector, windows::Vector{<:Vector{<:Real}}, regularization_obs, regularization_specie)::Nothing
     specie_ids = _get_specie_ids(speciemap)
     for i_window in 2:length(windows)
         for cid in condition_df_original.conditionId
-            _add_overlap_windows!(petab_tables, cid, measurements_df_original,
-                condition_df_original, windows[i_window], i_window, specie_ids)
+            _add_overlap_windows!(petab_tables, cid, measurements_original, condition_df_original, windows[i_window], i_window, specie_ids, regularization_specie)
         end
-        _update_measurements!(petab_tables, measurements_df_original,
-            condition_df_original, windows[i_window], i_window)
+        _update_measurements!(petab_tables, measurements_original, condition_df_original, windows[i_window], i_window, regularization_obs)
     end
     return nothing
 end
@@ -124,17 +118,14 @@ function _add_window_penalty_parameter!(petab_tables::PEtab.PEtabTables)::Nothin
     return nothing
 end
 
-function _add_overlap_windows!(
-        petab_tables::PEtab.PEtabTables, cid::String, measurements_df_original::DataFrame,
-        condition_df_original::DataFrame, window::Vector{<:Real},
-        i_window::Integer, specie_ids::Vector{String})::Nothing
+function _add_overlap_windows!(petab_tables::PEtab.PEtabTables, cid::String, measurements_original::DataFrame, condition_df_original::DataFrame, window::Vector{<:Real}, i_window::Integer, specie_ids::Vector{String}, regularization_specie)::Nothing
     measurements_df = petab_tables[:measurements]
     conditions_df = petab_tables[:conditions]
     parameters_df = petab_tables[:parameters]
     observable_df = petab_tables[:observables]
 
     # If all time-points for the condition id are before the window, no need to add
-    measurements_cid = filter(r -> r.simulationConditionId == cid, measurements_df_original)
+    measurements_cid = filter(r -> r.simulationConditionId == cid, measurements_original)
     if all(measurements_cid.time .< minimum(window))
         return nothing
     end
@@ -146,8 +137,13 @@ function _add_overlap_windows!(
     for specie_id in specie_ids
         # Create initial PEtab parameters for the window
         pid = _get_window_id(cid, i_window, specie_id, :parameter)
-        df_ps = DataFrame(parameterId = pid, parameterScale = "lin", lowerBound = 0.0,
-            upperBound = Inf, nominalValue = 1e-3, estimate = 1)
+        if specie_id != regularization_specie
+            df_ps = DataFrame(parameterId = pid, parameterScale = "lin", lowerBound = 0.0,
+                upperBound = Inf, nominalValue = 1e-3, estimate = 1)
+        else
+            df_ps = DataFrame(parameterId = pid, parameterScale = "lin", lowerBound = -Inf,
+                upperBound = Inf, nominalValue = 0.0, estimate = 0)
+        end
         append!(parameters_df, df_ps; promote = true, cols = :subset)
 
         # Assign initial value to parameter value via conditions table
@@ -176,19 +172,28 @@ function _add_overlap_windows!(
     return nothing
 end
 
-function _update_measurements!(
-        petab_tables::PEtab.PEtabTables, measurements_df_original::DataFrame,
-        condition_df_original::DataFrame,
-        window::Vector{<:Real}, i_window::Integer)::Nothing
+function _update_measurements!(petab_tables::PEtab.PEtabTables, measurements_original::DataFrame, condition_df_original::DataFrame, window::Vector{<:Real}, i_window::Integer, regularization_obs)::Nothing
     measurements_df = petab_tables[:measurements]
     for cid in condition_df_original.conditionId
-        i_cid = findall(x -> x == cid, measurements_df_original.simulationConditionId)
-        i_time = findall(x -> x ≥ minimum(window) && x ≤ maximum(window), measurements_df_original.time)
+        i_cid = findall(x -> x == cid, measurements_original.simulationConditionId)
+        i_time = findall(x -> x ≥ minimum(window) && x ≤ maximum(window), measurements_original.time)
         cid_window = _get_window_id(cid, i_window, "", :condition)
+        measurements_tmp = measurements_original[intersect(i_cid, i_time), :]
 
-        measurements_df_tmp = measurements_df_original[intersect(i_cid, i_time), :]
-        measurements_df_tmp.simulationConditionId .= cid_window
-        append!(measurements_df, measurements_df_tmp; cols = :subset, promote = true)
+        # Each window should contain Ml-model output regularization if provided
+        if !isnothing(regularization_obs)
+            measurements_cid_original = filter(r -> r.simulationConditionId == cid, measurements_original)
+            in_cid = regularization_obs in measurements_cid_original.observableId
+            if in_cid && regularization_obs in measurements_tmp.observableId
+                i_row = findfirst(x -> x == regularization_obs, measurements_tmp.observableId)
+                measurements_tmp.time[i_row] = maximum(measurements_tmp.time)
+            elseif in_cid
+                reg_row =  DataFrame(time = maximum(measurements_tmp.time), measurement = 0.0, observableId = regularization_obs, simulationConditionId = cid)
+                append!(measurements_tmp, reg_row, promote = true, cols = :subset)
+            end
+        end
+        measurements_tmp.simulationConditionId .= cid_window
+        append!(measurements_df, measurements_tmp; cols = :subset, promote = true)
     end
     return nothing
 end

@@ -61,6 +61,9 @@ function _test_ml_cl(model_id, split_algorithm)
     for i in 1:(n_windows - 1)
         _prob = prob_cl_ms.petab_problems[i]
         x_ms = get_x(_prob)
+        if :net1 in keys(x_ms)
+            x_ms.net1 .= 0.1
+        end
         nllh1 = _prob.nllh(x_ms)
         PEtabTraining.set_window_penalty!(prob_cl_ms, 2.0)
         nllh2 = _prob.nllh(x_ms)
@@ -122,5 +125,11 @@ end
     end
     for n in [2, 4]
         test_ml_cl("Fujita_SciSignal2010", n)
+    end
+    # Output regularization should be applied to each window for each stage
+    prob_original = _get_petab_problem("ude"; include_regularization = true)
+    cl_ms_prob = PEtabCLMSProblem(prob_original, SplitUniform(4); regularization_obs = "reg_o", regularization_specie = "nn_norm")
+    for prob in cl_ms_prob.petab_problems
+        test_output_regularization_ms_prob(prob)
     end
 end

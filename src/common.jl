@@ -76,3 +76,30 @@ function _perm_from_labels(x::ComponentArrays.ComponentVector, y::ComponentArray
     end
     return ix
 end
+
+function _check_regularization_obs(regularization_obs::Union{String, Symbol, Nothing}, prob_original::PEtabODEProblem)::Nothing
+    isnothing(regularization_obs) && return nothing
+    regularization_obs = string(regularization_obs)
+    measurements_original = prob_original.model_info.model.petab_tables[:measurements]
+    observables_original = prob_original.model_info.model.petab_tables[:observables]
+    @argcheck regularization_obs in observables_original.observableId "observableId \
+        $(regularization_obs) must appear as an observable among the observables"
+    @argcheck regularization_obs in measurements_original.observableId "observableId \
+        $(regularization_obs) must appear for at least one measurement in the measurement \
+        table"
+    return nothing
+end
+
+function _check_regularization_specie(regularization_obs::Union{Nothing, String, Symbol}, regularization_specie::Union{Nothing, String, Symbol})
+    if !isnothing(regularization_specie) || !isnothing(regularization_obs)
+        @argcheck !isnothing(regularization_obs) && !isnothing(regularization_specie) "If \
+            regularization_obs is provided then regularization_specie must be provided"
+        regularization_obs = string(regularization_obs)
+        regularization_specie = string(regularization_specie)
+    end
+    return nothing
+end
+
+_string(x::String) = x
+_string(::Nothing) = nothing
+_string(x::Symbol) = string(x)

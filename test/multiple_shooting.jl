@@ -82,6 +82,9 @@ function _test_multiple_shooting(model_id, split_algorithm)
 
     # Test effect changing penalty parameter (likelihood should change)
     # - Constant value
+    if :net1 in keys(x_ms)
+        x_ms.net1 .= 0.01
+    end
     nllh1 = prob.petab_prob_ms.nllh(x_ms)
     PEtabTraining.set_window_penalty!(prob, 2.0)
     nllh2 = prob.petab_prob_ms.nllh(x_ms)
@@ -134,22 +137,29 @@ function test_reference()
 end
 
 @testset "Multiple shooting" begin
-    for n_windows in [2, 3, 5]
-        test_multiple_shooting("Boehm_JProteomeRes2014", n_windows)
-        test_multiple_shooting("mm_julia", n_windows)
-        test_multiple_shooting("ude", n_windows)
+    for n in [2, 3, 5]
+        test_multiple_shooting("Boehm_JProteomeRes2014", n)
+        test_multiple_shooting("mm_julia", n)
+        test_multiple_shooting("ude", n)
     end
+
     splits_test = [[15.0, 40.0, 100.0, 240.0], [13.0, 25.0, 105.0, 250.0]]
     for split in splits_test
         test_multiple_shooting("Boehm_JProteomeRes2014", split)
+        @info "Pass Boehm split test"
     end
     test_multiple_shooting("mm_julia", [5.0, 10.0])
+    @info "Pass mm-julia"
 
-    for n_windows in [2, 4]
-        test_multiple_shooting("Fujita_SciSignal2010", n_windows)
+    for n in [2, 4]
+        test_multiple_shooting("Fujita_SciSignal2010", n)
     end
     # Test more windows is very heavy on RAM, due to huge number of parameters added
     test_multiple_shooting("Bachmann_MSB2011", 2)
     # Reference with manually computed ms-loss
     test_reference()
+    # Output regularization should be applied to each window
+    prob_original = _get_petab_problem("ude"; include_regularization = true)
+    ms_prob = PEtabMSProblem(prob_original, SplitUniform(4); regularization_obs = "reg_o", regularization_specie = "nn_norm")
+    test_output_regularization_ms_prob(ms_prob.petab_prob_ms)
 end
