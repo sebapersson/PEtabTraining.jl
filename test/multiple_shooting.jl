@@ -160,6 +160,7 @@ end
     test_reference()
     # Output regularization should be applied to each window
     prob_original = _get_petab_problem("ude"; include_regularization = true)
-    ms_prob = PEtabMSProblem(prob_original, SplitUniform(4); regularization_obs = "reg_o", regularization_specie = "nn_norm")
+    ms_prob = PEtabMSProblem(prob_original, SplitUniform(4); regularization_obs = "reg_o",
+        regularization_specie = "nn_norm")
     test_output_regularization_ms_prob(ms_prob.petab_prob_ms)
 end

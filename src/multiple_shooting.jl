@@ -4,7 +4,9 @@ mutable struct PEtabMSProblem
     petab_prob_ms::PEtabODEProblem
     original::PEtabODEProblem
 end
-function PEtabMSProblem(prob_original::PEtabODEProblem, split_algorithm; regularization_obs::Union{Nothing, String, Symbol} = nothing, regularization_specie::Union{Nothing, String, Symbol} = nothing)::PEtabMSProblem
+function PEtabMSProblem(prob_original::PEtabODEProblem, split_algorithm;
+        regularization_obs::Union{Nothing, String, Symbol} = nothing,
+        regularization_specie::Union{Nothing, String, Symbol} = nothing)::PEtabMSProblem
     _check_regularization_specie(regularization_obs, regularization_specie)
 
     if prob_original.model_info.simulation_info.has_pre_equilibration
@@ -12,11 +14,15 @@ function PEtabMSProblem(prob_original::PEtabODEProblem, split_algorithm; regular
             pre-equilibration simulation conditions."))
     end
     windows = _split(split_algorithm, prob_original, :multiple_shooting)
-    petab_prob_ms = _get_petab_prob_ms(prob_original, windows, _string(regularization_obs), _string(regularization_specie))
+    petab_prob_ms = _get_petab_prob_ms(
+        prob_original, windows, _string(regularization_obs), _string(regularization_specie))
     return PEtabMSProblem(split_algorithm, windows, petab_prob_ms, prob_original)
 end
 
-function _get_petab_prob_ms(prob_original::PEtabODEProblem, windows::Vector{<:Vector{<:Real}}, regularization_obs::Union{Nothing, String}, regularization_specie::Union{Nothing, String})::PEtabODEProblem
+function _get_petab_prob_ms(
+        prob_original::PEtabODEProblem, windows::Vector{<:Vector{<:Real}},
+        regularization_obs::Union{Nothing, String},
+        regularization_specie::Union{Nothing, String})::PEtabODEProblem
     _check_regularization_obs(regularization_obs, prob_original)
 
     petab_tables_ms = deepcopy(prob_original.model_info.model.petab_tables)
@@ -29,7 +35,8 @@ function _get_petab_prob_ms(prob_original::PEtabODEProblem, windows::Vector{<:Ve
 
     _add_first_window!(petab_tables_ms, measurements_original,
         condition_df_original, windows[1], speciemap, regularization_obs)
-    _add_windows!(petab_tables_ms, measurements_original, condition_df_original, speciemap, windows, regularization_obs, regularization_specie)
+    _add_windows!(petab_tables_ms, measurements_original, condition_df_original,
+        speciemap, windows, regularization_obs, regularization_specie)
     _add_window_penalty_parameter!(petab_tables_ms)
 
     # In the PEtabODEProblem simulationInfo.tstarts must be altered, to ensure that each
@@ -65,7 +72,10 @@ function _get_petab_prob_ms(prob_original::PEtabODEProblem, windows::Vector{<:Ve
     return petab_prob_ms
 end
 
-function _add_first_window!(petab_tables::PEtab.PEtabTables, measurements_original::DataFrame, condition_df_original::DataFrame, window::Vector{<:Real}, speciemap::Vector, regularization_obs)::Nothing
+function _add_first_window!(
+        petab_tables::PEtab.PEtabTables, measurements_original::DataFrame,
+        condition_df_original::DataFrame, window::Vector{<:Real},
+        speciemap::Vector, regularization_obs)::Nothing
     specie_ids = _get_specie_ids(speciemap)
     conditions_df = petab_tables[:conditions]
     parameters_df = petab_tables[:parameters]
@@ -94,17 +104,24 @@ function _add_first_window!(petab_tables::PEtab.PEtabTables, measurements_origin
         conditions_df[i_row, :conditionId] = _cid
     end
 
-    _update_measurements!(petab_tables, measurements_original, condition_df_original, window, 1, regularization_obs)
+    _update_measurements!(petab_tables, measurements_original,
+        condition_df_original, window, 1, regularization_obs)
     return nothing
 end
 
-function _add_windows!(petab_tables::PEtab.PEtabTables, measurements_original::DataFrame, condition_df_original::DataFrame, speciemap::Vector, windows::Vector{<:Vector{<:Real}}, regularization_obs, regularization_specie)::Nothing
+function _add_windows!(petab_tables::PEtab.PEtabTables, measurements_original::DataFrame,
+        condition_df_original::DataFrame, speciemap::Vector,
+        windows::Vector{<:Vector{<:Real}},
+        regularization_obs, regularization_specie)::Nothing
     specie_ids = _get_specie_ids(speciemap)
     for i_window in 2:length(windows)
         for cid in condition_df_original.conditionId
-            _add_overlap_windows!(petab_tables, cid, measurements_original, condition_df_original, windows[i_window], i_window, specie_ids, regularization_specie)
+            _add_overlap_windows!(
+                petab_tables, cid, measurements_original, condition_df_original,
+                windows[i_window], i_window, specie_ids, regularization_specie)
         end
-        _update_measurements!(petab_tables, measurements_original, condition_df_original, windows[i_window], i_window, regularization_obs)
+        _update_measurements!(petab_tables, measurements_original, condition_df_original,
+            windows[i_window], i_window, regularization_obs)
     end
     return nothing
 end
@@ -118,7 +135,10 @@ function _add_window_penalty_parameter!(petab_tables::PEtab.PEtabTables)::Nothin
     return nothing
 end
 
-function _add_overlap_windows!(petab_tables::PEtab.PEtabTables, cid::String, measurements_original::DataFrame, condition_df_original::DataFrame, window::Vector{<:Real}, i_window::Integer, specie_ids::Vector{String}, regularization_specie)::Nothing
+function _add_overlap_windows!(
+        petab_tables::PEtab.PEtabTables, cid::String, measurements_original::DataFrame,
+        condition_df_original::DataFrame, window::Vector{<:Real}, i_window::Integer,
+        specie_ids::Vector{String}, regularization_specie)::Nothing
     measurements_df = petab_tables[:measurements]
     conditions_df = petab_tables[:conditions]
     parameters_df = petab_tables[:parameters]
@@ -172,7 +192,10 @@ function _add_overlap_windows!(petab_tables::PEtab.PEtabTables, cid::String, mea
     return nothing
 end
 
-function _update_measurements!(petab_tables::PEtab.PEtabTables, measurements_original::DataFrame, condition_df_original::DataFrame, window::Vector{<:Real}, i_window::Integer, regularization_obs)::Nothing
+function _update_measurements!(
+        petab_tables::PEtab.PEtabTables, measurements_original::DataFrame,
+        condition_df_original::DataFrame, window::Vector{<:Real},
+        i_window::Integer, regularization_obs)::Nothing
     measurements_df = petab_tables[:measurements]
     for cid in condition_df_original.conditionId
         i_cid = findall(x -> x == cid, measurements_original.simulationConditionId)
@@ -188,7 +211,9 @@ function _update_measurements!(petab_tables::PEtab.PEtabTables, measurements_ori
                 i_row = findfirst(x -> x == regularization_obs, measurements_tmp.observableId)
                 measurements_tmp.time[i_row] = maximum(measurements_tmp.time)
             elseif in_cid
-                reg_row =  DataFrame(time = maximum(measurements_tmp.time), measurement = 0.0, observableId = regularization_obs, simulationConditionId = cid)
+                reg_row = DataFrame(
+                    time = maximum(measurements_tmp.time), measurement = 0.0,
+                    observableId = regularization_obs, simulationConditionId = cid)
                 append!(measurements_tmp, reg_row, promote = true, cols = :subset)
             end
         end

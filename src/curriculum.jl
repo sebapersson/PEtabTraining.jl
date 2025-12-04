@@ -4,7 +4,8 @@ struct PEtabCLProblem
     original::PEtabODEProblem
     regularization_obs::Symbol
 end
-function PEtabCLProblem(prob_original::PEtabODEProblem, split_algorithm; regularization_obs::Union{Nothing, String, Symbol} = nothing)::PEtabCLProblem
+function PEtabCLProblem(prob_original::PEtabODEProblem, split_algorithm;
+        regularization_obs::Union{Nothing, String, Symbol} = nothing)::PEtabCLProblem
     _check_regularization_obs(regularization_obs, prob_original)
 
     model_original = prob_original.model_info.model
@@ -29,7 +30,8 @@ function PEtabCLProblem(prob_original::PEtabODEProblem, split_algorithm; regular
     return PEtabCLProblem(split_algorithm, petab_problems, prob_original, regularization_obs)
 end
 
-function _split_curriculum(splits, mdf::DataFrame, prob::PEtabODEProblem, mode::Symbol)::Vector{PEtab.PEtabTables}
+function _split_curriculum(splits, mdf::DataFrame, prob::PEtabODEProblem,
+        mode::Symbol)::Vector{PEtab.PEtabTables}
     @assert mode in [:datapoints, :time, :conditions]
     out = Vector{PEtab.PEtabTables}(undef, length(splits))
     if mode in [:datapoints, :time]
@@ -52,7 +54,9 @@ function _split_curriculum(splits, mdf::DataFrame, prob::PEtabODEProblem, mode::
     return out
 end
 
-function _cl_adjust_ml_output_regularization!(petab_tables, regularization_obs::Union{String, Symbol, Nothing}, prob_original::PEtabODEProblem)::Nothing
+function _cl_adjust_ml_output_regularization!(
+        petab_tables, regularization_obs::Union{String, Symbol, Nothing},
+        prob_original::PEtabODEProblem)::Nothing
     isnothing(regularization_obs) && return nothing
     regularization_obs = string(regularization_obs)
 

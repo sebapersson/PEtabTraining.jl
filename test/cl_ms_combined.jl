@@ -128,7 +128,9 @@ end
     end
     # Output regularization should be applied to each window for each stage
     prob_original = _get_petab_problem("ude"; include_regularization = true)
-    cl_ms_prob = PEtabCLMSProblem(prob_original, SplitUniform(4); regularization_obs = "reg_o", regularization_specie = "nn_norm")
+    cl_ms_prob = PEtabCLMSProblem(
+        prob_original, SplitUniform(4); regularization_obs = "reg_o",
+        regularization_specie = "nn_norm")
     for prob in cl_ms_prob.petab_problems
         test_output_regularization_ms_prob(prob)
     end

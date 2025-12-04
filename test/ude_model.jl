@@ -14,7 +14,8 @@ function _lv_ude_function_reg!(du, u, p, t, ml_models)
     return nothing
 end
 
-function _get_lv_ude_model(; measurements_df::Union{DataFrame, Nothing} = nothing, include_regularization::Bool = false)
+function _get_lv_ude_model(; measurements_df::Union{DataFrame, Nothing} = nothing,
+        include_regularization::Bool = false)
     rng = Random.MersenneTwister(42)
     lv_net = Lux.Chain(Dense(2 => 5, Lux.tanh),
         Dense(5 => 5, Lux.tanh),
