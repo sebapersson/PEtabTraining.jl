@@ -146,10 +146,8 @@ end
     splits_test = [[15.0, 40.0, 100.0, 240.0], [13.0, 25.0, 105.0, 250.0]]
     for split in splits_test
         test_multiple_shooting("Boehm_JProteomeRes2014", split)
-        @info "Pass Boehm split test"
     end
     test_multiple_shooting("mm_julia", [5.0, 10.0])
-    @info "Pass mm-julia"
 
     for n in [2, 4]
         test_multiple_shooting("Fujita_SciSignal2010", n)
