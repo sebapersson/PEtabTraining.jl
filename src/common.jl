@@ -39,15 +39,21 @@ function _filter_condition_table!(petab_tables::PEtab.PEtabTables)::Nothing
     return nothing
 end
 
-function _get_unique_timepoints(mdf::DataFrame)::Vector{Float64}
-    return mdf.time |>
+function _get_unique_time_points(prob::PEtabODEProblem)::Vector{Float64}
+    measurements_df = prob.model_info.model.petab_tables[:measurements]
+    return _get_unique_time_points(
+        measurements_df
+    )
+end
+function _get_unique_time_points(measurements_df::DataFrame)::Vector{Float64}
+    return measurements_df.time |>
            unique |>
            sort
 end
 
-function _get_measurements_df_sorted(prob::PEtabODEProblem)::DataFrame
-    mdf = prob.model_info.model.petab_tables[:measurements]
-    return mdf[sortperm(mdf.time), :]
+function _get_sorted_measurements_df(prob::PEtabODEProblem)::DataFrame
+    measurements_df = prob.model_info.model.petab_tables[:measurements]
+    return measurements_df[sortperm(measurements_df.time), :]
 end
 
 function _splits_to_windows(splits::Vector{<:Real})

@@ -100,7 +100,7 @@ Map input Vector `x` coming from stage `from` to the layout of stage `to` for a
 `PEtabCLMSProblem`
 
 `from` and `to` must be valid stage indices. `x` can be a `Vector` or a `ComponentVector`,
-with the ordering expected by `PEtabODEproblem` in stage `from`.
+with the ordering expected by `PEtabODEProblem` in stage `from`.
 """
 function map_x_stage(x, clms::PEtabCLMSProblem, from::Integer = 1, to::Integer = 2)
     @argcheck 1 ≤ from ≤ length(clms.petab_problems) "invalid `from` stage index"

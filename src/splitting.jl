@@ -1,74 +1,34 @@
-struct SplitUniform
-    nsplits::Integer
-    mode::Symbol
-end
-function SplitUniform(nsplits::Integer; mode::Symbol = :time)::SplitUniform
-    _check_mode(mode)
-    return SplitUniform(nsplits, mode)
-end
-struct SplitCustom{T}
-    nsplits::Integer
-    mode::Symbol
-    splits::T
-end
-function SplitCustom(splits::Union{Vector{<:Real}, Vector{Vector{T}}};
-        mode::Symbol = :time)::SplitCustom where {T <: Union{String, Symbol}}
-    _check_mode(mode)
+function _split_cl(split_alg::SplitTime, prob::PEtabODEProblem)
+    _check_time_splits_cl(split_alg.spec, prob)
 
-    # Sanity check correct user input
-    s = splits
-    if mode == :time && !(s isa Vector{<:Real})
-        throw(ArgumentError("If `mode = :time`, then `splits` must be a `Vector{<:Real}`, \
-            where each entry represents the end-point of a curriculum step or multiple \
-            shooting window, e.g., [4.0, 20.0, 30.0]."))
-    end
-    if mode == :condition && !(s isa Vector{Vector{Symbol}} || s isa Vector{Vector{String}})
-        throw(ArgumentError("If `mode = :condition`, then `splits` must be a \
-             `Vector{Vector}` of simulation condition groups to split over, \
-             e.g., [[:cond1, :cond2], [:cond3]]."))
-    end
-    if mode == :datapoints && !(s isa Vector{<:Integer})
-        throw(ArgumentError("If `mode = :datapoints`, then splits must be a \
-            `Vector{Integer}`, where each entry specifies the number of data points from
-            the measurement table to include in each curriculum step, e.g., [5, 10, 20]"))
-    end
-    for (i, split) in pairs(splits)
-        !isempty(split) && continue
-        throw(ArgumentError("Interval $i is empty in the provided splits. When \
-            providing custom splits, no interval may be empty."))
+    unique_time_points = _get_unique_time_points(prob)
+    if split_alg.spec isa Integer
+        return last.(_makechunks(unique_time_points, split_alg.spec))
     end
 
-    return SplitCustom(length(splits), mode, splits)
-end
-
-function _split(split_algorithm::SplitUniform, prob::PEtabODEProblem, method::Symbol)
-    _check_mode(split_algorithm.mode, method)
-
-    if split_algorithm.mode == :time
-        return _split_uniform_time(prob, split_algorithm.nsplits, method)
-    elseif split_algorithm.mode == :condition
-        return _split_uniform_conditions(prob, split_algorithm.nsplits)
-    elseif split_algorithm.mode == :datapoints
-        return _split_uniform_datapoints(prob, split_algorithm.nsplits)
+    out = fill(0.0, length(split_alg.spec) + 1)
+    for i in eachindex(split_alg.spec)
+        idx_t = findall(t -> t < split_alg.spec[i], unique_time_points)
+        out[i] = maximum(unique_time_points[idx_t])
     end
+    out[end] = maximum(unique_time_points)
+    return out
 end
-function _split(split_algorithm::SplitCustom, prob::PEtabODEProblem, method::Symbol)
-    _check_mode(split_algorithm.mode, method)
+function _split_cl(split_alg::SplitData, prob::PEtabODEProblem)
+    _check_data_splits_cl(split_alg.spec, prob)
 
-    if split_algorithm.mode == :time
-        return _split_custom_time(prob, split_algorithm.splits, method)
-    elseif split_algorithm.mode == :condition
-        return _split_custom_conditions(prob, split_algorithm.splits)
-    elseif split_algorithm.mode == :datapoints
-        return _split_custom_datapoints(prob, split_algorithm.splits)
+    if split_alg.spec isa Integer
+        measurements_df = prob.model_info.model.petab_tables[:measurements]
+        return last.(_makechunks(collect(1:nrow(measurements_df)), split_alg.spec))
     end
+    return split_alg.spec
 end
 
 function _split_uniform_time(prob::PEtabODEProblem, nsplits::Integer, method::Symbol)
     _check_n_splits(prob, nsplits, :time)
 
     mdf = prob.model_info.model.petab_tables[:measurements]
-    unique_t = _get_unique_timepoints(prob.model_info.model.petab_tables[:measurements])
+    unique_t = _get_unique_time_points(prob.model_info.model.petab_tables[:measurements])
     if method == :multiple_shooting
         return _makechunks(unique_t, nsplits; overlap = 1)
     end
@@ -81,7 +41,7 @@ function _split_custom_time(prob::PEtabODEProblem, splits::Vector{<:Real}, metho
 
     # Sanity check user provided reasonable splitting intervals
     mdf = prob.model_info.model.petab_tables[:measurements]
-    unique_t = _get_unique_timepoints(prob.model_info.model.petab_tables[:measurements])
+    unique_t = _get_unique_time_points(prob.model_info.model.petab_tables[:measurements])
     n_time_points_included = 0
     for (i, tmax_split) in pairs(splits)
         n_time_points_split = sum(unique_t .≤ tmax_split)
@@ -110,35 +70,10 @@ function _split_custom_time(prob::PEtabODEProblem, splits::Vector{<:Real}, metho
     return _split_curriculum(splits, mdf, prob, :time)
 end
 
-function _split_uniform_conditions(prob::PEtabODEProblem, nsplits::Integer)
-    _check_n_splits(prob, nsplits, :conditions)
-
-    conditions_ids = string.(prob.model_info.simulation_info.conditionids[:simulation])
-    mdf = prob.model_info.model.petab_tables[:measurements]
-    splits = _makechunks(conditions_ids, nsplits)
-    _split_curriculum(splits, mdf, prob, :conditions)
-end
-
-function _split_custom_conditions(prob::PEtabODEProblem,
-        splits::Vector{Vector{T}}) where {T <: Union{String, Symbol}}
-    _check_n_splits(prob, length(splits), :conditions)
-    splits_conditions = string.(reduce(vcat, splits))
-    conditions_ids = string.(prob.model_info.simulation_info.conditionids[:simulation])
-    for cid in conditions_ids
-        cid in splits_conditions && continue
-        throw(ArgumentError("The simulation condition $cid, which is defined in the \
-            PEtab problem, is not present in any of the custom condition curriculum \
-            splits provided."))
-    end
-
-    mdf = prob.model_info.model.petab_tables[:measurements]
-    _split_curriculum(splits, mdf, prob, :conditions)
-end
-
 function _split_uniform_datapoints(prob::PEtabODEProblem, nsplits::Integer)
     _check_n_splits(prob, nsplits, :datapoints)
 
-    mdf_sorted = _get_measurements_df_sorted(prob)
+    mdf_sorted = _get_sorted_measurements_df(prob)
     splits = _makechunks(collect(1:nrow(mdf_sorted)), nsplits)
     return _split_curriculum(splits, mdf_sorted, prob, :datapoints)
 end
@@ -153,7 +88,7 @@ function _split_custom_datapoints(prob::PEtabODEProblem, splits::Vector{<:Intege
             $(i + 1) has fewer ($(splits[i+1]) data points) data points than \
              $i ($(splits[i]) data points)."))
     end
-    mdf_sorted = _get_measurements_df_sorted(prob)
+    mdf_sorted = _get_sorted_measurements_df(prob)
     if splits[end] != nrow(mdf_sorted)
         throw(ArgumentError("When using custom splits based on data points, the number of \
             data points in the final interval must match the total number of data points \
@@ -164,24 +99,11 @@ function _split_custom_datapoints(prob::PEtabODEProblem, splits::Vector{<:Intege
     return _split_curriculum(splits, mdf_sorted, prob, :datapoints)
 end
 
-function _check_mode(mode::Symbol)::Nothing
-    @argcheck mode in [:time, :datapoints, :condition] "Splitting mode must be one of \
-        :time, :datapoints, or :condition."
-    return nothing
-end
-function _check_mode(mode::Symbol, method::Symbol)::Nothing
-    if method == :multiple_shooting && (mode == :condition || mode == :datapoints)
-        throw(ArgumentError("For multiple shooting, splitting over `$mode` \
-            (mode = :$(mode)) is not allowed."))
-    end
-    return nothing
-end
-
 function _check_n_splits(
         prob::PEtabODEProblem, nsplits::Integer, max_splits_criteria::Symbol)::Nothing
     if max_splits_criteria == :time
         mdf = prob.model_info.model.petab_tables[:measurements]
-        max_splits = length(_get_unique_timepoints(mdf))
+        max_splits = length(_get_unique_time_points(mdf))
         str1 = "unique time-points"
     elseif max_splits_criteria == :datapoints
         mdf = prob.model_info.model.petab_tables[:measurements]
@@ -198,4 +120,77 @@ function _check_n_splits(
     throw(ArgumentError("The number of $str1 must be smaller than or equal to the number \
         of splits (curriculum stages or multiple shooting windows). There are \
         $(max_splits) $str1, but nsplits = $(nsplits)."))
+end
+
+function _check_time_splits_cl(n::Integer, prob::PEtabODEProblem)::Nothing
+    unique_time_points = _get_unique_time_points(prob)
+    if n > length(unique_time_points)
+        throw(ArgumentError("Number of time splits $n exceeds number of unique time \
+            points $(length(unique_time_points))."))
+    end
+    return nothing
+end
+function _check_time_splits_cl(split_points::Vector{<:Real}, prob::PEtabODEProblem)::Nothing
+    if !issorted(split_points)
+        throw(ArgumentError("Time split points must be sorted in ascending order."))
+    end
+
+    unique_time_points = _get_unique_time_points(prob)
+    if maximum(unique_time_points) < split_points[end]
+        throw(ArgumentError("The last time split point $(split_points[end]) is larger \
+            than the maximum measurement time point $(maximum(unique_time_points))."))
+    end
+
+    # Check that each split will contain at least one time point
+    unique_time_points = _get_unique_time_points(prob)
+    t_start = unique_time_points[1]
+    for (i, t_split) in pairs(split_points)
+        if i != length(split_points)
+            n_points = sum(
+                (t_start .<= unique_time_points) .& (unique_time_points .< t_split)
+            )
+        else
+            n_points = sum(
+                (t_start .<= unique_time_points) .& (unique_time_points .< t_split)
+            )
+        end
+
+        if n_points == 0
+            interval = if i == length(split_points)
+                "[($(t_start), $(t_split)]"
+            else
+                "[($(t_start), $(t_split))"
+            end
+            throw(ArgumentError("Time split point $t_split does not include any new \
+                measurement time points, as there are no measurements between $(interval). \
+                Each split must include at least one new measurement time point."))
+        end
+        t_start = t_split
+    end
+    return nothing
+end
+
+function _check_data_splits_cl(n::Integer, prob::PEtabODEProblem)::Nothing
+    n_data_points = nrow(prob.model_info.model.petab_tables[:measurements])
+    if n > n_data_points
+        throw(ArgumentError("Number of data splits $n exceeds number of data points \
+            $(n_data_points)."))
+    end
+    return nothing
+end
+function _check_data_splits_cl(
+        split_points::Vector{<:Integer}, prob::PEtabODEProblem
+    )::Nothing
+    n_data_points = nrow(prob.model_info.model.petab_tables[:measurements])
+
+    if !issorted(split_points)
+        throw(ArgumentError("Data split points must be sorted in ascending order."))
+    end
+
+
+    if split_points[end] != n_data_points
+        throw(ArgumentError("The last data split point $(split_points[end]) must be \
+            equal to the number of data points $(n_data_points) in the measurement table."))
+    end
+    return nothing
 end
