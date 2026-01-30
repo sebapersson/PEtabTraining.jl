@@ -2,9 +2,13 @@ using CSV, DataFrames, PEtab, PEtabTraining, Test
 
 include(joinpath(@__DIR__, "helper.jl"))
 
-function test_cl_ms(model_id, split_alg::SplitTime)
+function test_cl_ms(model_id, split_alg::SplitTime; window_u0_scale = :lin)
+    @assert window_u0_scale in [:lin, :log10]
+
     prob_original = _get_petab_problem(model_id)
-    prob_cl_ms = PEtabClMsProblem(prob_original, split_alg)
+    prob_cl_ms = PEtabClMsProblem(
+        prob_original, split_alg; window_u0_scale = window_u0_scale
+    )
 
     # Test that windows are created correctly
     for i in length(prob_cl_ms.ms_windows):-1:2
@@ -30,7 +34,12 @@ function test_cl_ms(model_id, split_alg::SplitTime)
         PEtabTraining.set_u0_ms_windows!(x_test, prob_cl_ms, i; init = MsInitConstant(5.0))
 
         u0_x_names = PEtabTraining._get_ms_u0_x_names(prob_ms)
-        @test all(x_test[u0_x_names] .== 5.0)
+        if window_u0_scale == :lin
+            @test all(x_test[u0_x_names] .== 5.0)
+        elseif window_u0_scale == :log10
+            u0_x_names .= Symbol.("log10_" .* string.(u0_x_names))
+            @test all(x_test[u0_x_names] .== log10(5.0))
+        end
     end
 
     # Use initial values from first window
@@ -50,7 +59,7 @@ function test_cl_ms(model_id, split_alg::SplitTime)
                 x_original, prob_original; retmap = false, condition = condition_id_original
             )
             u0_ms = PEtab.get_u0(x_test, prob_ms; retmap = false, condition = condition_id)
-            @test u0_ms == u0_original
+            @test all(.≈(u0_ms, u0_original; atol = 1.0e-8))
         end
     end
 
@@ -130,6 +139,9 @@ end
     for n_windows in [2, 4]
         test_cl_ms("Fujita_SciSignal2010", SplitTime(n_windows))
     end
+
+    # Test initial window parameters can be estimated on log10-scale
+    test_cl_ms("mm_julia", SplitTime(3); window_u0_scale = :log10)
 
     splits_test = [[15.0, 40.0, 100.0], [13.0, 25.0, 105.0]]
     for time_splits in splits_test

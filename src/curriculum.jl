@@ -1,9 +1,3 @@
-struct PEtabClProblem{T <: Union{SplitTime, SplitData}}
-    petab_problems::Vector{PEtabODEProblem}
-    original::PEtabODEProblem
-    split_alg::T
-    regularization_obs::Symbol
-end
 function PEtabClProblem(
         prob_original::PEtabODEProblem, split_alg::Union{SplitTime, SplitData};
         regularization_obs::Union{Nothing, String, Symbol} = nothing

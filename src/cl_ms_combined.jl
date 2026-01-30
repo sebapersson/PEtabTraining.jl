@@ -1,18 +1,15 @@
-struct PEtabClMsProblem
-    petab_problems::Vector{PEtabODEProblem}
-    original::PEtabODEProblem
-    split_alg::SplitTime
-    ms_windows::Dict{Symbol, Vector{Vector{Float64}}}
-end
 function PEtabClMsProblem(
         prob_original::PEtabODEProblem, split_alg::SplitTime;
         regularization_obs::Union{Nothing, String, Symbol} = nothing,
-        regularization_specie::Union{Nothing, String, Symbol} = nothing
+        regularization_specie::Union{Nothing, String, Symbol} = nothing,
+        window_u0_scale::Symbol = :lin
     )::PEtabClMsProblem
     if prob_original.model_info.simulation_info.has_pre_equilibration
         throw(ArgumentError("Curriculum + multiple shooting approach is not supported for \
             models with pre-equilibration simulation conditions."))
     end
+
+    @argcheck window_u0_scale in [:lin, :log, :log10]
 
     _check_regularization_specie(regularization_obs, regularization_specie)
 
@@ -34,10 +31,12 @@ function PEtabClMsProblem(
     for i in 1:(n_windows - 1)
         ms_windows_stage = ms_windows_stages[Symbol("stage$(i)")]
         petab_problems[i] = PEtabTraining._get_petab_ms_problem(
-            prob_original, ms_windows_stage, _string(regularization_obs),
+            prob_original, ms_windows_stage, window_u0_scale, _string(regularization_obs),
             _string(regularization_specie)
         )
     end
     petab_problems[n_windows] = prob_original
-    return PEtabClMsProblem(petab_problems, prob_original, split_alg, ms_windows_stages)
+    return PEtabClMsProblem(
+        petab_problems, prob_original, split_alg, ms_windows_stages, window_u0_scale
+    )
 end

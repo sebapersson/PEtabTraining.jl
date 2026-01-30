@@ -78,7 +78,9 @@ function _set_u0_ms_windows!(
     u0_x_names = _get_ms_u0_x_names(petab_ms_problem)
     idx = [findfirst(x -> x == name, x_names) for name in string.(u0_x_names)]
     u0_values = fill(init.value, length(idx))
-    PEtab.transform_x!(u0_values, u0_x_names, petab_ms_problem.model_info.xindices)
+    PEtab.transform_x!(
+        u0_values, u0_x_names, petab_ms_problem.model_info.xindices; to_xscale = true
+    )
     x[idx] .= u0_values
     return nothing
 end
@@ -92,7 +94,8 @@ function _set_u0_ms_windows!(
 
     x_names = ComponentArrays.labels(petab_ms_problem.xnominal)
     u0_x_names = _get_ms_u0_x_names(petab_ms_problem)
-    for u0_x_name in string.(u0_x_names)
+    u0_values = fill(0.0, length(u0_x_names))
+    for (i, u0_x_name) in pairs(string.(u0_x_names))
         condition_id = _get_condition_id_from_window(u0_x_name)
         specie_id = _get_specie_id_from_window(u0_x_name)
 
@@ -100,10 +103,14 @@ function _set_u0_ms_windows!(
             p_original, original; retmap = false, condition = condition_id
         )
         u0_value = u0_condition_id[findfirst(x -> x == specie_id, specie_ids)]
-
-        idx = findfirst(x -> x == u0_x_name, x_names)
-        x[idx] = u0_value
+        u0_values[i] = u0_value
     end
+
+    PEtab.transform_x!(
+        u0_values, u0_x_names, petab_ms_problem.model_info.xindices; to_xscale = true
+    )
+    idx = [findfirst(x -> x == name, x_names) for name in string.(u0_x_names)]
+    x[idx] .= u0_values
     return nothing
 end
 function _set_u0_ms_windows!(
@@ -130,8 +137,14 @@ function _set_u0_ms_windows!(
             specie_index = findfirst(x -> x == specie_id, specie_ids)
             t0_window = minimum(ms_windows[_get_index_from_window(u0_x_name)])
 
+            u0_value = [sol(t0_window)[specie_index]]
+            PEtab.transform_x!(
+                u0_value, [Symbol(u0_x_name)], petab_ms_problem.model_info.xindices;
+                to_xscale = true
+            )
+
             idx = findfirst(x -> x == u0_x_name, x_names)
-            @views x[idx] = sol(t0_window)[specie_index]
+            @views x[idx] = u0_value[1]
         end
     end
     return nothing

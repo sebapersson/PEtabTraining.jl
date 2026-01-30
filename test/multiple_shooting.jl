@@ -2,10 +2,12 @@ using CSV, DataFrames, PEtab, PEtabTraining, Test
 
 include(joinpath(@__DIR__, "helper.jl"))
 
-function test_multiple_shooting(model_id, split_alg::SplitTime)
+function test_multiple_shooting(model_id, split_alg::SplitTime; window_u0_scale = :lin)
+    @assert window_u0_scale in [:lin, :log10]
+
     prob_original = _get_petab_problem(model_id)
 
-    prob_ms = PEtabMsProblem(prob_original, split_alg)
+    prob_ms = PEtabMsProblem(prob_original, split_alg; window_u0_scale = window_u0_scale)
 
     measurements_original = prob_original.model_info.model.petab_tables[:measurements]
     measurements_ms = prob_ms.petab_ms_problem.model_info.model.petab_tables[:measurements]
@@ -72,7 +74,12 @@ function test_multiple_shooting(model_id, split_alg::SplitTime)
     u0_x_names = PEtabTraining._get_ms_u0_x_names(prob_ms.petab_ms_problem)
     x_test = get_x(prob_ms.petab_ms_problem)
     PEtabTraining.set_u0_ms_windows!(x_test, prob_ms; init = MsInitConstant(4.0))
-    @test all(x_test[u0_x_names] .== 4.0)
+    if window_u0_scale == :lin
+        @test all(x_test[u0_x_names] .== 4.0)
+    elseif window_u0_scale == :log10
+        u0_x_names .= Symbol.("log10_" .* string.(u0_x_names))
+        @test all(x_test[u0_x_names] .== log10(4.0))
+    end
 
     # - Initial values for the first window
     x_original = get_x(prob_ms.original)
@@ -86,7 +93,7 @@ function test_multiple_shooting(model_id, split_alg::SplitTime)
         u0_ms = PEtab.get_u0(
             x_test, prob_ms.petab_ms_problem; retmap = false, condition = condition_id
         )
-        @test u0_ms == u0_original
+        @test all(.≈(u0_ms, u0_original; atol = 1.0e-8))
     end
 
     # Test effect changing penalty parameter (likelihood should change)
@@ -149,6 +156,9 @@ end
     for n_windows in [2, 4]
         test_multiple_shooting("Fujita_SciSignal2010", SplitTime(n_windows))
     end
+
+    # Test that estimating window-parameters on log10-scale is feasible
+    test_multiple_shooting("mm_julia", SplitTime(3); window_u0_scale = :log10)
 
     splits_test = [[15.0, 40.0, 100.0], [13.0, 25.0, 105.0]]
     for time_splits in splits_test

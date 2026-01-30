@@ -8,7 +8,7 @@ function _get_mm_model(; measurements_df::Union{DataFrame, Nothing} = nothing)
         c2, SE --> S + E
         c3, SE --> P + E
     end
-    speciemap = [:E => 50.0, :SE => 0.0, :P => 0.0]
+    speciemap = [:E => 50.0, :SE => 0.01, :P => 0.01]
 
     @unpack E, S, P = rn
     @parameters sigma
@@ -25,7 +25,7 @@ function _get_mm_model(; measurements_df::Union{DataFrame, Nothing} = nothing)
 
     if isnothing(measurements_df)
         ps = [:c1 => 1.0, :c2 => 10.0, :c3 => 1.0, :S0 => 100.0]
-        u0 = [:S => 100.0, :E => 50.0, :SE => 0.0, :P => 0.0]
+        u0 = [:S => 100.0, :E => 50.0, :SE => 0.01, :P => 0.01]
         tspan = (0.0, 10.0)
         oprob = ODEProblem(rn, u0, tspan, ps)
         sol = solve(oprob, Rodas5P(); saveat = 0:0.5:10.0)

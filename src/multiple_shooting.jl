@@ -1,33 +1,32 @@
-mutable struct PEtabMsProblem
-    petab_ms_problem
-    original::PEtabODEProblem
-    split_alg::SplitTime
-    ms_windows::Vector{Vector{Float64}}
-end
 function PEtabMsProblem(
         prob_original::PEtabODEProblem, split_alg::SplitTime;
         regularization_obs::Union{Nothing, String, Symbol} = nothing,
-        regularization_specie::Union{Nothing, String, Symbol} = nothing
+        regularization_specie::Union{Nothing, String, Symbol} = nothing,
+        window_u0_scale::Symbol = :lin
     )::PEtabMsProblem
     if prob_original.model_info.simulation_info.has_pre_equilibration
         throw(ArgumentError("Multiple shooting is not supported for models with \
             pre-equilibration simulation conditions."))
     end
 
+    @argcheck window_u0_scale in [:lin, :log, :log10]
+
     _check_regularization_specie(regularization_obs, regularization_specie)
 
     ms_windows = _split_ms(split_alg, prob_original)
     petab_ms_problem = _get_petab_ms_problem(
-        prob_original, ms_windows, _string(regularization_obs),
+        prob_original, ms_windows, window_u0_scale, _string(regularization_obs),
         _string(regularization_specie)
     )
 
-    return PEtabMsProblem(petab_ms_problem, prob_original, split_alg, ms_windows)
+    return PEtabMsProblem(
+        petab_ms_problem, prob_original, split_alg, ms_windows, window_u0_scale
+    )
 end
 
 function _get_petab_ms_problem(
         prob_original::PEtabODEProblem, ms_windows::Vector{<:Vector{<:Real}},
-        regularization_obs::Union{Nothing, String},
+        window_u0_scale::Symbol, regularization_obs::Union{Nothing, String},
         regularization_specie::Union{Nothing, String}
     )::PEtabODEProblem
     _check_regularization_obs(regularization_obs, prob_original)
@@ -47,7 +46,7 @@ function _get_petab_ms_problem(
     )
     _add_ms_windows!(
         petab_tables_ms, measurements_original, conditions_original, ms_windows,
-        speciemap, regularization_obs, regularization_specie
+        speciemap, window_u0_scale, regularization_obs, regularization_specie
     )
     _add_window_penalty_parameter!(petab_tables_ms)
 
@@ -128,7 +127,7 @@ end
 function _add_ms_windows!(
         petab_tables::PEtab.PEtabTables, measurements_original::DataFrame,
         conditions_original::DataFrame, ms_windows::Vector{<:Vector{<:Real}},
-        speciemap::Vector, regularization_obs, regularization_specie
+        speciemap::Vector, window_u0_scale::Symbol, regularization_obs, regularization_specie
     )::Nothing
     specie_ids = _get_specie_ids(speciemap)
 
@@ -136,7 +135,8 @@ function _add_ms_windows!(
         for condition_id in conditions_original.conditionId
             _add_overlap_ms_windows!(
                 petab_tables, condition_id, measurements_original, conditions_original,
-                ms_windows[i_window], i_window, specie_ids, regularization_specie
+                ms_windows[i_window], i_window, specie_ids, window_u0_scale,
+                regularization_specie
             )
         end
 
@@ -152,7 +152,7 @@ function _add_overlap_ms_windows!(
         petab_tables_ms::PEtab.PEtabTables, condition_id::String,
         measurements_original::DataFrame, conditions_original::DataFrame,
         ms_window::Vector{<:Real}, i_window::Integer, specie_ids::Vector{String},
-        regularization_specie
+        window_u0_scale::Symbol, regularization_specie
     )::Nothing
     measurements_df, conditions_df, parameters_df, observable_df = PEtab._get_petab_tables(
         petab_tables_ms, [:measurements, :conditions, :parameters, :observables]
@@ -176,10 +176,12 @@ function _add_overlap_ms_windows!(
     for specie_id in specie_ids
         # Window initial value parameters
         parameter_id = _get_window_id(condition_id, i_window, specie_id, :parameter)
+
         if specie_id != regularization_specie
+            lb = window_u0_scale == :lin ? -Inf : 1.0e-8
             df_ps = DataFrame(
-                parameterId = parameter_id, parameterScale = "lin", lowerBound = 0.0,
-                upperBound = 1.0e8, nominalValue = 1.0e-3, estimate = 1
+                parameterId = parameter_id, parameterScale = "$(window_u0_scale)",
+                lowerBound = lb, upperBound = 1.0e8, nominalValue = 1.0e-3, estimate = 1
             )
         else
             df_ps = DataFrame(
