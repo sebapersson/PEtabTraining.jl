@@ -47,7 +47,8 @@ function _check_time_splits_cl(n::Integer, prob::PEtabODEProblem)::Nothing
 end
 function _check_time_splits_cl(split_points::Vector{<:Real}, prob::PEtabODEProblem)::Nothing
     if !issorted(split_points)
-        throw(ArgumentError("Time split points must be sorted in ascending order."))
+        throw(ArgumentError("Time split points must be sorted in ascending order, does \
+            not hold for $(split_points)"))
     end
 
     unique_time_points = _get_unique_time_points(prob)
@@ -69,13 +70,8 @@ function _check_time_splits_cl(split_points::Vector{<:Real}, prob::PEtabODEProbl
                 (t_start .<= unique_time_points) .& (unique_time_points .< t_split)
             )
         end
-
         if n_points == 0
-            interval = if i == length(split_points)
-                "[($(t_start), $(t_split)]"
-            else
-                "[($(t_start), $(t_split))"
-            end
+            interval = "[$(t_start), $(t_split))"
             throw(ArgumentError("Time split point $t_split does not include any new \
                 measurement time points, as there are no measurements between $(interval). \
                 Each split must include at least one new measurement time point."))
@@ -99,7 +95,8 @@ function _check_data_splits_cl(
     n_data_points = nrow(prob.model_info.model.petab_tables[:measurements])
 
     if !issorted(split_points)
-        throw(ArgumentError("Data split points must be sorted in ascending order."))
+        throw(ArgumentError("Data split points must be sorted in ascending order, does \
+            not hold for $(split_points)."))
     end
 
 
@@ -115,7 +112,8 @@ function _check_time_splits_ms(n::Integer, prob::PEtabODEProblem)::Nothing
 end
 function _check_time_splits_ms(split_points::Vector{<:Real}, prob::PEtabODEProblem)::Nothing
     if !issorted(split_points)
-        throw(ArgumentError("Time split points must be sorted in ascending order."))
+        throw(ArgumentError("Time split points must be sorted in ascending order, does \
+            not hold for $(split_points)"))
     end
 
     unique_time_points = _get_unique_time_points(prob)
