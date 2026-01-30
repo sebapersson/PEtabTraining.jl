@@ -13,12 +13,12 @@ include(joinpath(@__DIR__, "structs.jl"))
 include(joinpath(@__DIR__, "common.jl"))
 include(joinpath(@__DIR__, "splitting.jl"))
 include(joinpath(@__DIR__, "curriculum.jl"))
-include(joinpath(@__DIR__, "curriculum_ms_combined.jl"))
+include(joinpath(@__DIR__, "cl_ms_combined.jl"))
 include(joinpath(@__DIR__, "multiple_shooting.jl"))
 include(joinpath(@__DIR__, "petab_odeproblem.jl"))
 include(joinpath(@__DIR__, "util.jl"))
 
-export PEtabClProblem, PEtabMsProblem, PEtabCLMSProblem, SplitTime, SplitData,
+export PEtabClProblem, PEtabMsProblem, PEtabClMsProblem, SplitTime, SplitData,
     MsInitConstant, MsInitFirst, MsInitSimulate
 
 end

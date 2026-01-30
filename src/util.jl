@@ -1,5 +1,5 @@
 """
-    set_u0_ms_windows!(x, prob_ms::PEtabMsProblem; init = MsInitConstant(0.0))
+    set_u0_ms_windows!(x, prob_ms::PEtabMsProblem; init = MsInitConstant(0.01))
     set_u0_ms_windows!(x, prob_ms::PEtabMsProblem, p; init = MsInitFirst())
     set_u0_ms_windows!(x, prob_ms::PEtabMsProblem, p; init = MsInitSimulate())
 
@@ -15,14 +15,6 @@ Initialization is controlled by `init`:
 - `MsInitSimulate(...)`: Forward simulate the model and set each window initial value
   from the simulated state at the window start time.
 """
-function set_u0_ms_windows!(prob::PEtabCLMSProblem, method::Symbol, x)::Nothing
-    @unpack petab_problems, ms_windows, original = prob
-    for i in 1:(length(petab_problems) - 1)
-        ms_windows_stage = ms_windows[Symbol("stage$(i)")]
-        _set_u0_ms_windows!(petab_problems[i], original, ms_windows_stage, method, x)
-    end
-    return nothing
-end
 function set_u0_ms_windows!(
         x::Union{Vector{<:Real}, ComponentArray}, prob::PEtabMsProblem;
         init::MsInitConstant = MsInitConstant()
@@ -39,6 +31,43 @@ function set_u0_ms_windows!(
 
     @unpack petab_ms_problem, original, ms_windows = prob
     _set_u0_ms_windows!(x, petab_ms_problem, original, p, ms_windows, init)
+end
+"""
+    set_u0_ms_windows!(x, prob::PEtabClMSProblem, stage::Integer; init = MsInitConstant(0.01))
+    set_u0_ms_windows!(x, prob::PEtabClMSProblem, stage::Integer, p; init = MsInitFirst())
+    set_u0_ms_windows!(x, prob::PEtabClMSProblem, stage::Integer, p; init = MsInitSimulate())
+
+Set multiple-shooting window initial values in the multiple-shooting parameter vector `x`
+for `stage` of a combined curriculum-learning and multiple-shooting problem `prob`.
+
+`x` must be in the format expected by the multiple-shooting stage problem (e.g. returned by
+`get_x(prob; stage = stage)`). All other arguments have the same meaning as for
+`set_u0_ms_windows!(x, prob::PEtabMsProblem, ...)`.
+"""
+function set_u0_ms_windows!(
+        x::Union{Vector{<:Real}, ComponentArray}, prob::PEtabClMsProblem, stage::Integer;
+        init::MsInitConstant = MsInitConstant()
+    )::Nothing
+    @argcheck 1 ≤ stage ≤ length(prob.petab_problems) "invalid `stage` index"
+
+    if stage == length(prob.petab_problems)
+        return nothing
+    end
+
+    petab_ms_problem = prob.petab_problems[stage]
+    _set_u0_ms_windows!(x, petab_ms_problem, init)
+    return nothing
+end
+function set_u0_ms_windows!(
+        x::Union{Vector{<:Real}, ComponentArray}, prob::PEtabClMsProblem, stage::Integer,
+        p::Union{Vector{<:Real}, ComponentArray};
+        init::Union{MsInitFirst, MsInitSimulate} = MsInitFirst()
+    )::Nothing
+    @argcheck 1 ≤ stage ≤ length(prob.petab_problems) "invalid `stage` index"
+
+    petab_ms_problem = prob.petab_problems[stage]
+    ms_windows = prob.ms_windows[Symbol("stage$(stage)")]
+    _set_u0_ms_windows!(x, petab_ms_problem, prob.original, p, ms_windows, init)
 end
 
 function _set_u0_ms_windows!(
@@ -108,7 +137,7 @@ function _set_u0_ms_windows!(
     return nothing
 end
 
-function set_window_penalty!(prob::PEtabCLMSProblem, x::Real)::Nothing
+function set_window_penalty!(prob::PEtabClMsProblem, x::Real)::Nothing
     for i in 1:(length(prob.petab_problems) - 1)
         _set_window_penalty!(prob.petab_problems[i], x)
     end
@@ -148,15 +177,15 @@ function _get_p_original(
 end
 
 """
-map_x_stage(x, clms::PEtabCLMSProblem; from::Integer=1, to::Integer=2)
+map_x_stage(x, clms::PEtabClMsProblem; from::Integer=1, to::Integer=2)
 
 Map input Vector `x` coming from stage `from` to the layout of stage `to` for a
-`PEtabCLMSProblem`
+`PEtabClMsProblem`
 
 `from` and `to` must be valid stage indices. `x` can be a `Vector` or a `ComponentVector`,
 with the ordering expected by `PEtabODEProblem` in stage `from`.
 """
-function map_x_stage(x, clms::PEtabCLMSProblem, from::Integer = 1, to::Integer = 2)
+function map_x_stage(x, clms::PEtabClMsProblem, from::Integer = 1, to::Integer = 2)
     @argcheck 1 ≤ from ≤ length(clms.petab_problems) "invalid `from` stage index"
     @argcheck 1 ≤ to ≤ length(clms.petab_problems) "invalid `to` stage index"
     @argcheck from != to

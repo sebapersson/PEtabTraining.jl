@@ -2,71 +2,68 @@ using CSV, DataFrames, PEtab, PEtabTraining, Test
 
 include(joinpath(@__DIR__, "helper.jl"))
 
-function test_ml_cl(model_id, n_splits::Integer)
-    split_algorithm = SplitUniform(n_splits)
-    return _test_ml_cl(model_id, split_algorithm)
-end
-function test_ml_cl(model_id, windows::Vector)
-    split_algorithm = SplitCustom(windows; mode = :time)
-    return _test_ml_cl(model_id, split_algorithm)
-end
-
-function _test_ml_cl(model_id, split_algorithm)
+function test_cl_ms(model_id, split_alg::SplitTime)
     prob_original = _get_petab_problem(model_id)
-    prob_cl_ms = PEtabCLMSProblem(prob_original, split_algorithm)
+    prob_cl_ms = PEtabClMsProblem(prob_original, split_alg)
 
     # Test that windows are created correctly
-    mdf = prob_original.model_info.model.petab_tables[:measurements]
-    for i in length(prob_cl_ms.windows):-1:2
-        windows_stage = prob_cl_ms.windows[Symbol("stage$i")]
-        windows_stage_prev = prob_cl_ms.windows[Symbol("stage$(i-1)")]
+    for i in length(prob_cl_ms.ms_windows):-1:2
+        windows_stage = prob_cl_ms.ms_windows[Symbol("stage$i")]
+        windows_stage_prev = prob_cl_ms.ms_windows[Symbol("stage$(i-1)")]
         for j in eachindex(windows_stage)
-            @test windows_stage[j] == unique(reduce(vcat, windows_stage_prev[j:(j + 1)]))
+            test_value = unique(reduce(vcat, windows_stage_prev[j:(j + 1)]))
+            test_value = [first(test_value), last(test_value)]
+            @test windows_stage[j] == test_value
         end
     end
-    n_windows = length(keys(prob_cl_ms.windows))
-    t_uni = PEtabTraining._get_unique_timepoints(mdf)
-    if split_algorithm isa SplitUniform
-        @test t_uni == prob_cl_ms.windows[Symbol("stage$(n_windows)")][1]
-    else
-        @test t_uni[1] == prob_cl_ms.windows[Symbol("stage$(n_windows)")][1][1]
-        @test t_uni[end] ≤ prob_cl_ms.windows[Symbol("stage$(n_windows)")][1][end]
+
+    # Test final window spans all measurements
+    n_windows = length(keys(prob_cl_ms.ms_windows))
+    t_uni = PEtabTraining._get_unique_time_points(prob_original)
+    @test t_uni[1] == prob_cl_ms.ms_windows[Symbol("stage$(n_windows)")][1][1]
+    @test t_uni[end] == prob_cl_ms.ms_windows[Symbol("stage$(n_windows)")][1][end]
+
+    # Test setting initial window values as Constant for each stage
+    for i in 1:(n_windows - 1)
+        prob_ms = prob_cl_ms.petab_problems[i]
+        x_test = get_x(prob_ms)
+        PEtabTraining.set_u0_ms_windows!(x_test, prob_cl_ms, i; init = MsInitConstant(5.0))
+
+        u0_x_names = PEtabTraining._get_ms_u0_x_names(prob_ms)
+        @test all(x_test[u0_x_names] .== 5.0)
     end
 
-    # Test setting initial window values
-    # Constant
-    PEtabTraining.set_u0_windows!(prob_cl_ms, :constant, 4.0)
-    for i in 1:(n_windows - 1)
-        _prob = prob_cl_ms.petab_problems[i]
-        xnames_u0 = PEtabTraining._get_ms_u0_xnames(_prob)
-        @test all(_prob.xnominal[xnames_u0] .== 4.0)
-        @test all(_prob.xnominal_transformed[xnames_u0] .== 4.0)
-    end
-    # Initial values for the first window
+    # Use initial values from first window
     x_original = get_x(prob_cl_ms.original)
-    PEtabTraining.set_u0_windows!(prob_cl_ms, :window1_u0, x_original)
     for i in 1:(n_windows - 1)
-        _prob = prob_cl_ms.petab_problems[i]
-        x_ms = get_x(_prob)
-        cids = _prob.model_info.model.petab_tables[:conditions].conditionId |> unique
-        for cid in cids
-            cid_original = PEtabTraining._get_cid_from_window_id(cid)
-            u0_original = PEtab.get_u0(x_original, prob_original; retmap = false, cid = cid_original)
-            u0_ms = PEtab.get_u0(x_ms, _prob; retmap = false, cid = cid)
+        prob_ms = prob_cl_ms.petab_problems[i]
+        x_test = get_x(prob_ms)
+        PEtabTraining.set_u0_ms_windows!(
+            x_test, prob_cl_ms, i, x_original; init = MsInitFirst()
+        )
+
+        condition_ids = prob_ms.model_info.model.petab_tables[:conditions].conditionId
+        for condition_id in condition_ids
+            condition_id_original = PEtabTraining._get_condition_id_from_window(condition_id)
+
+            u0_original = PEtab.get_u0(
+                x_original, prob_original; retmap = false, condition = condition_id_original
+            )
+            u0_ms = PEtab.get_u0(x_test, prob_ms; retmap = false, condition = condition_id)
             @test u0_ms == u0_original
         end
     end
 
     # Test setting MS penalty
     for i in 1:(n_windows - 1)
-        _prob = prob_cl_ms.petab_problems[i]
-        x_ms = get_x(_prob)
-        if :net1 in keys(x_ms)
-            x_ms.net1 .= 0.1
+        prob_ms = prob_cl_ms.petab_problems[i]
+        x_test = get_x(prob_ms)
+        if :net1 in keys(x_test)
+            x_test.net1 .= 0.1
         end
-        nllh1 = _prob.nllh(x_ms)
+        nllh1 = prob_ms.nllh(x_test)
         PEtabTraining.set_window_penalty!(prob_cl_ms, 2.0)
-        nllh2 = _prob.nllh(x_ms)
+        nllh2 = prob_ms.nllh(x_test)
         @test nllh1 != nllh2
         PEtabTraining.set_window_penalty!(prob_cl_ms, 1.0)
     end
@@ -93,44 +90,58 @@ function _test_ml_cl(model_id, split_algorithm)
         end
     end
 
-    # Check correctness. Most easy by ensuing identical simulations between the stage and
-    # original problem. See MS tests for comments
-    if prob_original.model_info.model.sys isa ODEProblem
-        return nothing
-    end
+    # Most easy by ensuring identical simulations between the stage and original problem.
+    # See MS tests for comments
     for i in 1:(n_windows - 1)
+        prob_ms = prob_cl_ms.petab_problems[i]
         x_original = get_x(prob_original)
-        _prob = prob_cl_ms.petab_problems[i]
-        windows = prob_cl_ms.windows[Symbol("stage$i")]
-        PEtabTraining.set_u0_windows!(prob_cl_ms, :window1_simulate, x_original)
-        prob_duplicated = _get_prob_duplicated(model_id, prob_original, windows)
-        nllh_cl_ms = _prob.nllh(get_x(_prob))
-        nllh_cl_ms -= 0.5 * log(2π) * get_n_diff(_prob, prob_duplicated)
+        x_test = get_x(prob_ms)
+        if :net1 in keys(x_test)
+            x_original.net1 .= 0.001
+            x_test.net1 .= 0.001
+        end
+
+        PEtabTraining.set_u0_ms_windows!(
+            x_test, prob_cl_ms, i, x_original; init = MsInitSimulate()
+        )
+
+        ms_windows = prob_cl_ms.ms_windows[Symbol("stage$i")]
+        prob_duplicated = _get_prob_duplicated(model_id, prob_original, ms_windows)
+
+        nllh_cl_ms = prob_ms.nllh(x_test)
+        nllh_cl_ms -= 0.5 * log(2π) * get_n_diff(prob_ms, prob_duplicated)
         nllh_duplicated = prob_duplicated.nllh(x_original)
-        @test nllh_cl_ms≈nllh_duplicated atol=1e-3
+        if model_id != "ude"
+            @test nllh_cl_ms≈nllh_duplicated atol=1e-3
+        else
+            @test nllh_cl_ms≈nllh_duplicated atol=1e-2
+        end
     end
     @test prob_cl_ms.petab_problems[end].nllh(x_original) == prob_original.nllh(x_original)
     return nothing
 end
 
 @testset "CL + MS" begin
-    for n in [2, 3, 5]
-        test_ml_cl("Boehm_JProteomeRes2014", n)
-        test_ml_cl("mm_julia", n)
-        test_ml_cl("ude", n)
+    for n_windows in [2, 3, 5]
+        test_cl_ms("Boehm_JProteomeRes2014", SplitTime(n_windows))
+        test_cl_ms("mm_julia", SplitTime(n_windows))
+        test_cl_ms("ude", SplitTime(n_windows))
     end
-    splits_test = [[15.0, 40.0, 100.0, 240.0], [13.0, 25.0, 105.0, 250.0]]
-    for split_test in splits_test
-        test_ml_cl("Boehm_JProteomeRes2014", split_test)
+    for n_windows in [2, 4]
+        test_cl_ms("Fujita_SciSignal2010", SplitTime(n_windows))
     end
-    for n in [2, 4]
-        test_ml_cl("Fujita_SciSignal2010", n)
+
+    splits_test = [[15.0, 40.0, 100.0], [13.0, 25.0, 105.0]]
+    for time_splits in splits_test
+        test_cl_ms("Boehm_JProteomeRes2014", SplitTime(time_splits))
     end
+
     # Output regularization should be applied to each window for each stage
     prob_original = _get_petab_problem("ude"; include_regularization = true)
-    cl_ms_prob = PEtabCLMSProblem(
-        prob_original, SplitUniform(4); regularization_obs = "reg_o",
-        regularization_specie = "nn_norm")
+    cl_ms_prob = PEtabClMsProblem(
+        prob_original, SplitTime(4); regularization_obs = "reg_o",
+        regularization_specie = "nn_norm"
+    )
     for prob in cl_ms_prob.petab_problems
         test_output_regularization_ms_prob(prob)
     end
