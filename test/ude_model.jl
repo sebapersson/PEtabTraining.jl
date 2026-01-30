@@ -8,8 +8,8 @@ function _lv_ude_function_reg!(du, u, p, t, ml_models)
     du_nn, st = net1.lux_model([prey, predator], p[:net1], net1.st)
     net1.st = st
 
-    du[1] = alpha*prey - du_nn[1] # prey
-    du[2] = du_nn[2] - delta*predator # predator
+    du[1] = alpha * prey - du_nn[1] # prey
+    du[2] = du_nn[2] - delta * predator # predator
     du[3] = LinearAlgebra.norm([du_nn[1], du_nn[2]])
     return nothing
 end
@@ -22,7 +22,8 @@ function _get_lv_ude_model(;
     lv_net = Lux.Chain(
         Dense(2 => 5, Lux.tanh),
         Dense(5 => 5, Lux.tanh),
-        Dense(5 => 2)) |> f64
+        Dense(5 => 2)
+    ) |> f64
     ml_model = PEtab.MLModel(:net1, lv_net, false)
 
     pnn = Lux.initialparameters(rng, lv_net) |> ComponentArray |> f64
@@ -31,17 +32,17 @@ function _get_lv_ude_model(;
     ude_problem = UDEProblem(_lv_ude_function_reg!, u0, (0.0, 10.0), p_mechanistic, ml_model)
 
     pest = [
-        PEtabParameter(:alpha; scale = :lin, lb = 1e-2, ub = 1e2, value = 1.3),
-        PEtabParameter(:beta; scale = :lin, lb = 1e-2, ub = 1e2, value = 0.9),
-        PEtabParameter(:delta; scale = :lin, lb = 1e-2, ub = 1e2, value = 1.8),
+        PEtabParameter(:alpha; scale = :lin, lb = 1.0e-2, ub = 1.0e2, value = 1.3),
+        PEtabParameter(:beta; scale = :lin, lb = 1.0e-2, ub = 1.0e2, value = 0.9),
+        PEtabParameter(:delta; scale = :lin, lb = 1.0e-2, ub = 1.0e2, value = 1.8),
         PEtabParameter(:lambda_reg; estimate = false, scale = :lin, value = 1.0),
-        PEtabMLParameter(:net1; value = pnn)
+        PEtabMLParameter(:net1; value = pnn),
     ]
 
     observables = [
         PEtabObservable(:prey_o, :prey, 1.0),
         PEtabObservable(:predator_o, :predator, 1.0),
-        PEtabObservable(:reg_o, "1e-6 * lambda_reg * (nn_norm)^2", 1.0)
+        PEtabObservable(:reg_o, "1e-6 * lambda_reg * (nn_norm)^2", 1.0),
     ]
 
     if isnothing(measurements_df)

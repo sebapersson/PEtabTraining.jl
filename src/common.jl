@@ -1,4 +1,3 @@
-
 function _makechunks(x::AbstractVector, n::Integer; overlap::Integer = 0)
     c = length(x) ÷ n
     chunks = [x[(1 + c * k):(k == n - 1 ? end : c * k + c)] for k in 0:(n - 1)]
@@ -14,8 +13,8 @@ function _get_specie_ids(prob::PEtabODEProblem)
 end
 function _get_specie_ids(speciemap)
     specie_ids = speciemap .|>
-                 first .|>
-                 string
+        first .|>
+        string
     specie_ids = replace.(specie_ids, "(t)" => "")
     return specie_ids
 end
@@ -47,8 +46,8 @@ function _get_unique_time_points(prob::PEtabODEProblem)::Vector{Float64}
 end
 function _get_unique_time_points(measurements_df::DataFrame)::Vector{Float64}
     return measurements_df.time |>
-           unique |>
-           sort
+        unique |>
+        sort
 end
 
 function _get_sorted_measurements_df(prob::PEtabODEProblem)::DataFrame
@@ -66,7 +65,9 @@ end
 
 function _transform_x!(prob::PEtabODEProblem)::Nothing
     @unpack xnominal, xnominal_transformed, xnames, model_info = prob
-    @views xnominal_transformed .= PEtab.transform_x(xnominal, xnames, model_info.xindices; to_xscale = true)
+    @views xnominal_transformed .= PEtab.transform_x(
+        xnominal, xnames, model_info.xindices; to_xscale = true
+    )
     return nothing
 end
 
@@ -75,7 +76,9 @@ _perm_from_labels(x::ComponentVector, y::ComponentVector)
 
 Return a permutation ix such that getdata(y)[ix] == getdata(x).
 """
-function _perm_from_labels(x::ComponentArrays.ComponentVector, y::ComponentArrays.ComponentVector)
+function _perm_from_labels(
+        x::ComponentArrays.ComponentVector, y::ComponentArrays.ComponentVector
+    )
     ix = fill(0, length(x))
     for (i, label) in pairs(ComponentArrays.labels(x))
         ix[i] = only(ComponentArrays.label2index(y, label))
@@ -83,8 +86,10 @@ function _perm_from_labels(x::ComponentArrays.ComponentVector, y::ComponentArray
     return ix
 end
 
-function _check_regularization_obs(regularization_obs::Union{String, Symbol, Nothing},
-        prob_original::PEtabODEProblem)::Nothing
+function _check_regularization_obs(
+        regularization_obs::Union{String, Symbol, Nothing},
+        prob_original::PEtabODEProblem
+    )::Nothing
     isnothing(regularization_obs) && return nothing
     regularization_obs = string(regularization_obs)
     measurements_original = prob_original.model_info.model.petab_tables[:measurements]
@@ -97,8 +102,10 @@ function _check_regularization_obs(regularization_obs::Union{String, Symbol, Not
     return nothing
 end
 
-function _check_regularization_specie(regularization_obs::Union{Nothing, String, Symbol},
-        regularization_specie::Union{Nothing, String, Symbol})
+function _check_regularization_specie(
+        regularization_obs::Union{Nothing, String, Symbol},
+        regularization_specie::Union{Nothing, String, Symbol}
+    )
     if !isnothing(regularization_specie) || !isnothing(regularization_obs)
         @argcheck !isnothing(regularization_obs) && !isnothing(regularization_specie) "If \
             regularization_obs is provided then regularization_specie must be provided"

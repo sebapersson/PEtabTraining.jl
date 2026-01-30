@@ -52,7 +52,8 @@ function test_split_custom_time(model_id, time_split)
         )
     end
     test_nllh(
-        model_id, measurements_df, measurements_df, petab_prob, cl_problem.petab_problems[end]
+        model_id, measurements_df, measurements_df, petab_prob,
+        cl_problem.petab_problems[end]
     )
     return nothing
 end

@@ -7,7 +7,7 @@ x = ComponentVector(
     net1 = (
         layer1 = (weight = randn(5, 2), bias = randn(5)),
         layer2 = (weight = randn(4, 6), bias = randn(4)),
-        layer3 = (weight = randn(3, 8), bias = randn(3))
+        layer3 = (weight = randn(3, 8), bias = randn(3)),
     )
 )
 y = ComponentVector(
@@ -15,7 +15,7 @@ y = ComponentVector(
     net1 = (
         layer3 = x.net1.layer3,
         layer1 = x.net1.layer1,
-        layer2 = x.net1.layer2
+        layer2 = x.net1.layer2,
     ),
     delta = x.delta,
     alpha = x.alpha

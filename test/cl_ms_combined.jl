@@ -9,7 +9,7 @@ function test_cl_ms(model_id, split_alg::SplitTime)
     # Test that windows are created correctly
     for i in length(prob_cl_ms.ms_windows):-1:2
         windows_stage = prob_cl_ms.ms_windows[Symbol("stage$i")]
-        windows_stage_prev = prob_cl_ms.ms_windows[Symbol("stage$(i-1)")]
+        windows_stage_prev = prob_cl_ms.ms_windows[Symbol("stage$(i - 1)")]
         for j in eachindex(windows_stage)
             test_value = unique(reduce(vcat, windows_stage_prev[j:(j + 1)]))
             test_value = [first(test_value), last(test_value)]
@@ -72,7 +72,7 @@ function test_cl_ms(model_id, split_alg::SplitTime)
     for i in 2:(n_windows - 1)
         x_from = deepcopy(get_x(prob_cl_ms.petab_problems[i - 1]))
         x_from .= 0.5
-        x_to = PEtabTraining.map_x_stage(x_from, prob_cl_ms, i-1, i)
+        x_to = PEtabTraining.map_x_stage(x_from, prob_cl_ms, i - 1, i)
         for (i, label) in pairs(ComponentArrays.labels(x_from))
             !(label in ComponentArrays.labels(x_to)) && continue
             ix = only(ComponentArrays.label2index(x_to, label))
@@ -82,7 +82,7 @@ function test_cl_ms(model_id, split_alg::SplitTime)
     for i in n_windows:-1:2
         x_from = deepcopy(get_x(prob_cl_ms.petab_problems[i]))
         x_from .= 0.5
-        x_to = PEtabTraining.map_x_stage(x_from, prob_cl_ms, i, i-1)
+        x_to = PEtabTraining.map_x_stage(x_from, prob_cl_ms, i, i - 1)
         for (i, label) in pairs(ComponentArrays.labels(x_from))
             !(label in ComponentArrays.labels(x_to)) && continue
             ix = only(ComponentArrays.label2index(x_to, label))
@@ -112,9 +112,9 @@ function test_cl_ms(model_id, split_alg::SplitTime)
         nllh_cl_ms -= 0.5 * log(2π) * get_n_diff(prob_ms, prob_duplicated)
         nllh_duplicated = prob_duplicated.nllh(x_original)
         if model_id != "ude"
-            @test nllh_cl_ms≈nllh_duplicated atol=1e-3
+            @test nllh_cl_ms ≈ nllh_duplicated atol = 1.0e-3
         else
-            @test nllh_cl_ms≈nllh_duplicated atol=1e-2
+            @test nllh_cl_ms ≈ nllh_duplicated atol = 1.0e-2
         end
     end
     @test prob_cl_ms.petab_problems[end].nllh(x_original) == prob_original.nllh(x_original)

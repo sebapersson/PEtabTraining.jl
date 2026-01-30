@@ -70,13 +70,14 @@ function _get_petab_ms_problem(
 
     @unpack (
         solver, solver_gradient, ss_solver, ss_solver_gradient, gradient_method,
-        hessian_method, sensealg, reuse_sensitivities
+        hessian_method, sensealg, reuse_sensitivities,
     ) = prob_original.probinfo
     petab_ms_problem = PEtabODEProblem(
         model_ms; odesolver = solver, odesolver_gradient = solver_gradient,
         ss_solver = ss_solver, ss_solver_gradient = ss_solver_gradient,
         gradient_method = gradient_method, hessian_method = hessian_method,
-        sensealg = sensealg, reuse_sensitivities = reuse_sensitivities)
+        sensealg = sensealg, reuse_sensitivities = reuse_sensitivities
+    )
 
     # In the PEtabODEProblem simulationInfo.tstarts must be altered, to ensure that each
     # simulations starts from the correct time-point to correctly handle potential events
@@ -88,7 +89,8 @@ end
 function _add_first_window!(
         petab_tables_ms::PEtab.PEtabTables, measurements_original::DataFrame,
         conditions_original::DataFrame, ms_window::Vector{<:Real},
-        speciemap::Vector, regularization_obs)::Nothing
+        speciemap::Vector, regularization_obs
+    )::Nothing
     specie_ids = _get_specie_ids(speciemap)
     conditions_df, parameters_df = PEtab._get_petab_tables(
         petab_tables_ms, [:conditions, :parameters]
@@ -125,7 +127,7 @@ end
 
 function _add_ms_windows!(
         petab_tables::PEtab.PEtabTables, measurements_original::DataFrame,
-        conditions_original::DataFrame,  ms_windows::Vector{<:Vector{<:Real}},
+        conditions_original::DataFrame, ms_windows::Vector{<:Vector{<:Real}},
         speciemap::Vector, regularization_obs, regularization_specie
     )::Nothing
     specie_ids = _get_specie_ids(speciemap)
@@ -177,7 +179,7 @@ function _add_overlap_ms_windows!(
         if specie_id != regularization_specie
             df_ps = DataFrame(
                 parameterId = parameter_id, parameterScale = "lin", lowerBound = 0.0,
-                upperBound = 1e8, nominalValue = 1e-3, estimate = 1
+                upperBound = 1.0e8, nominalValue = 1.0e-3, estimate = 1
             )
         else
             df_ps = DataFrame(
@@ -224,7 +226,7 @@ function _add_window_penalty_parameter!(petab_tables_ms::PEtab.PEtabTables)::Not
     parameters_df = petab_tables_ms[:parameters]
     parameters_row = DataFrame(
         parameterId = "lambda_sqrt", parameterScale = "lin", lowerBound = 0.0,
-        upperBound = 1e8, nominalValue = 1.0, estimate = 0
+        upperBound = 1.0e8, nominalValue = 1.0, estimate = 0
     )
     DataFrames.append!(parameters_df, parameters_row; promote = true, cols = :subset)
     return nothing
@@ -310,8 +312,8 @@ function _add_regularization_measurements!(
     )
 
     if (
-        regularization_obs in measurements_condition_original.observableId &&
-        regularization_obs in measurements_df_tmp.observableId
+            regularization_obs in measurements_condition_original.observableId &&
+                regularization_obs in measurements_df_tmp.observableId
         )
         idx_row = findfirst(
             x -> x == regularization_obs, measurements_df_tmp.observableId

@@ -2,8 +2,8 @@ using Catalyst, PEtab, OrdinaryDiffEqRosenbrock, DataFrames
 
 function _get_mm_model(; measurements_df::Union{DataFrame, Nothing} = nothing)
     rn = @reaction_network begin
-        @parameters S0 c3=1.0
-        @species S(t)=S0
+        @parameters S0 c3 = 1.0
+        @species S(t) = S0
         c1, S + E --> SE
         c2, SE --> S + E
         c3, SE --> P + E
@@ -14,7 +14,7 @@ function _get_mm_model(; measurements_df::Union{DataFrame, Nothing} = nothing)
     @parameters sigma
     observables = [
         PEtabObservable(:obs_sum, S + E, 1.0),
-        PEtabObservable(:obs_p, P, sigma)
+        PEtabObservable(:obs_p, P, sigma),
     ]
 
     p_c1 = PEtabParameter(:c1; value = 1.0)

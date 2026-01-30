@@ -30,7 +30,7 @@ function set_u0_ms_windows!(
     )::Nothing
 
     @unpack petab_ms_problem, original, ms_windows = prob
-    _set_u0_ms_windows!(x, petab_ms_problem, original, p, ms_windows, init)
+    return _set_u0_ms_windows!(x, petab_ms_problem, original, p, ms_windows, init)
 end
 """
     set_u0_ms_windows!(x, prob::PEtabClMSProblem, stage::Integer; init = MsInitConstant(0.01))
@@ -67,7 +67,7 @@ function set_u0_ms_windows!(
 
     petab_ms_problem = prob.petab_problems[stage]
     ms_windows = prob.ms_windows[Symbol("stage$(stage)")]
-    _set_u0_ms_windows!(x, petab_ms_problem, prob.original, p, ms_windows, init)
+    return _set_u0_ms_windows!(x, petab_ms_problem, prob.original, p, ms_windows, init)
 end
 
 function _set_u0_ms_windows!(
@@ -149,7 +149,7 @@ function set_window_penalty!(prob::PEtabMsProblem, x::Real)::Nothing
 end
 
 function _set_window_penalty!(prob::PEtabODEProblem, x::Real)::Nothing
-    @argcheck x≥0 "Multiple shooting window penalty parameter must be ≥0"
+    @argcheck x ≥ 0 "Multiple shooting window penalty parameter must be ≥0"
     petab_parameters = prob.model_info.petab_parameters
     ix = findfirst(x -> x == :lambda_sqrt, petab_parameters.parameter_id)
     petab_parameters.nominal_value[ix] = sqrt(x)

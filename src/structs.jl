@@ -1,5 +1,4 @@
-
-struct SplitTime{T<:Union{Int, Vector{<:Real}}}
+struct SplitTime{T <: Union{Int, Vector{<:Real}}}
     spec::T
 end
 """
@@ -10,7 +9,7 @@ Split the measurements in the measurement table into `n` chunks based on unique 
 The resulting chunking is applied to each simulation condition. If the number of unique time
 points is not divisible by `n`, the last chunk contains the remaining time points.
 """
-SplitTime(n::T) where T <: Integer = SplitTime{T}(n)
+SplitTime(n::T) where {T <: Integer} = SplitTime{T}(n)
 """
     SplitTime(split_points::Vector{<:Real})
 
@@ -22,9 +21,9 @@ the minimum/maximum measurement time points and `sᵢ` are the entries in `split
 `split_points` must be sorted and lie within the range of the measurement time points.
 Split points do not need to coincide with measurement time points.
 """
-SplitTime(split_points::T) where T <: Vector{<:Real} = SplitTime{T}(split_points)
+SplitTime(split_points::T) where {T <: Vector{<:Real}} = SplitTime{T}(split_points)
 
-struct SplitData{T<:Union{Int, Vector{<:Integer}}}
+struct SplitData{T <: Union{Int, Vector{<:Integer}}}
     spec::T
 end
 """
@@ -37,7 +36,7 @@ is not divisible by `n`, the last chunk contains the remaining data points.
 
 If all measurements have a unique time point, this is equivalent to `SplitTime(n)`.
 """
-SplitData(n::T) where T <: Integer = SplitData{T}(n)
+SplitData(n::T) where {T <: Integer} = SplitData{T}(n)
 """
     SplitData(chunk_sizes::Vector{<:Integer})
 
@@ -46,7 +45,7 @@ chunks, where `chunk_sizes[i]` gives the number of data points in chunk `i`.
 
 `chunk_sizes` must be sorted, and the final entry must equal the number of measurements.
 """
-SplitData(chunk_sizes::T) where T <: Vector{<:Integer} = SplitData{T}(chunk_sizes)
+SplitData(chunk_sizes::T) where {T <: Vector{<:Integer}} = SplitData{T}(chunk_sizes)
 
 """
     MsInitConstant(value::Real = 0.01)
@@ -56,7 +55,7 @@ initial value is set to `value`.
 
 See also [`set_u0_ms_windows!`](@ref).
 """
-struct MsInitConstant{T<:Real}
+struct MsInitConstant{T <: Real}
     value::T
 end
 MsInitConstant() = MsInitConstant{Float64}(0.01)

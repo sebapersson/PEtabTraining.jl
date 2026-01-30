@@ -17,7 +17,7 @@ function test_multiple_shooting(model_id, split_alg::SplitTime)
         ms_windows = PEtabTraining._makechunks(unique_t, split_alg.spec; overlap = 1)
     else
         vals = [unique_t[1], split_alg.spec..., unique_t[end]]
-        ms_windows = [[vals[i], vals[i+1]] for i in 1:(length(vals) - 1)]
+        ms_windows = [[vals[i], vals[i + 1]] for i in 1:(length(vals) - 1)]
     end
 
     condition_ids = prob_ms.petab_ms_problem.model_info.model.petab_tables[:conditions].conditionId |>
@@ -48,15 +48,15 @@ function test_multiple_shooting(model_id, split_alg::SplitTime)
         condition_id_original = PEtabTraining._get_condition_id_from_window(condition_id)
         measurements_original_condition = filter(
             row -> row.simulationConditionId == condition_id_original && row.time ≥ t_min &&
-            row.time ≤ t_max, measurements_original
+                row.time ≤ t_max, measurements_original
         )
         measurements_ms_condition = filter(
             row -> row.simulationConditionId == condition_id && row.time ≥ t_min &&
-            row.time ≤ t_max, measurements_ms
+                row.time ≤ t_max, measurements_ms
         )
 
         next_condition_id = replace(
-            condition_id, "_WINDOW$(i_window)_" => "_WINDOW$(i_window+1)_"
+            condition_id, "_WINDOW$(i_window)_" => "_WINDOW$(i_window + 1)_"
         )
         if next_condition_id in condition_ids
             @test nrow(measurements_ms_condition) == (
@@ -114,18 +114,18 @@ function test_multiple_shooting(model_id, split_alg::SplitTime)
     nllh_duplicated = prob_duplicated.nllh(x_original)
     # For UDE magnitude of likelihood is on order of 1e6, so numerics play a large role
     if model_id != "ude"
-        @test nllh_ms ≈ nllh_duplicated atol=1e-3
+        @test nllh_ms ≈ nllh_duplicated atol = 1.0e-3
     else
-        @test nllh_ms ≈ nllh_duplicated atol=1e-2
+        @test nllh_ms ≈ nllh_duplicated atol = 1.0e-2
     end
     return nothing
 end
 
 function test_reference()
     prob_original = _get_petab_problem("mm_julia")
-    prob_original.probinfo.solver.abstol = 1e-12
-    prob_original.probinfo.solver.reltol = 1e-12
-    prob_original.probinfo.solver.maxiters = Int(1e6)
+    prob_original.probinfo.solver.abstol = 1.0e-12
+    prob_original.probinfo.solver.reltol = 1.0e-12
+    prob_original.probinfo.solver.maxiters = Int(1.0e6)
     prob_ms = PEtabMsProblem(prob_original, SplitTime([3.25, 5.25]))
 
     x_test = get_x(prob_ms.petab_ms_problem)
@@ -135,7 +135,7 @@ function test_reference()
     residuals = prob_ms.petab_ms_problem.residuals(x_test)
     nllh_ms = prob_ms.petab_ms_problem.nllh(x_test)
     nllh_ms_naive = sum(@. 0.5 * log(2π) + 0.5 * residuals^2)
-    @test nllh_ms ≈ nllh_ms_naive atol=1e-8
+    @test nllh_ms ≈ nllh_ms_naive atol = 1.0e-8
     return nothing
 end
 

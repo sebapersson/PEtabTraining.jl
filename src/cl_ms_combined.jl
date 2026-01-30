@@ -4,7 +4,8 @@ struct PEtabClMsProblem
     split_alg::SplitTime
     ms_windows::Dict{Symbol, Vector{Vector{Float64}}}
 end
-function PEtabClMsProblem(prob_original::PEtabODEProblem, split_alg::SplitTime;
+function PEtabClMsProblem(
+        prob_original::PEtabODEProblem, split_alg::SplitTime;
         regularization_obs::Union{Nothing, String, Symbol} = nothing,
         regularization_specie::Union{Nothing, String, Symbol} = nothing
     )::PEtabClMsProblem
@@ -20,7 +21,7 @@ function PEtabClMsProblem(prob_original::PEtabODEProblem, split_alg::SplitTime;
 
     n_windows = length(ms_windows_stages[:stage1])
     for i in 2:n_windows
-        ms_windows_prev = ms_windows_stages[Symbol("stage$(i-1)")]
+        ms_windows_prev = ms_windows_stages[Symbol("stage$(i - 1)")]
         ms_windows_stage = Vector{Vector{Float64}}(undef, n_windows - i + 1)
         for j in eachindex(ms_windows_stage)
             ms_windows_stage[j] = unique(reduce(vcat, ms_windows_prev[j:(j + 1)]))
