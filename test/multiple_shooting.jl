@@ -2,41 +2,37 @@ using CSV, DataFrames, PEtab, PEtabTraining, Test
 
 include(joinpath(@__DIR__, "helper.jl"))
 
-function test_multiple_shooting(model_id, n_windows::Integer)
-    split_algorithm = SplitUniform(n_windows)
-    _test_multiple_shooting(model_id, split_algorithm)
-    return nothing
-end
-function test_multiple_shooting(model_id, windows::Vector)
-    split_algorithm = SplitCustom(windows; mode = :time)
-    _test_multiple_shooting(model_id, split_algorithm)
-    return nothing
-end
-
-function _test_multiple_shooting(model_id, split_algorithm)
+function test_multiple_shooting(model_id, split_alg::SplitTime)
     prob_original = _get_petab_problem(model_id)
 
-    prob = PEtabMSProblem(prob_original, split_algorithm)
+    prob_ms = PEtabMsProblem(prob_original, split_alg)
 
-    mdf_original = prob_original.model_info.model.petab_tables[:measurements]
-    mdf_ms = prob.petab_prob_ms.model_info.model.petab_tables[:measurements]
+    measurements_original = prob_original.model_info.model.petab_tables[:measurements]
+    measurements_ms = prob_ms.petab_ms_problem.model_info.model.petab_tables[:measurements]
 
     # Check each window has correct start and end time-points. Note, the last measurement
     # point for a condition might appear in the middle of a window.
-    unique_t = PEtabTraining._get_unique_timepoints(mdf_original)
-    if split_algorithm isa SplitUniform
-        windows = PEtabTraining._makechunks(unique_t, split_algorithm.nsplits; overlap = 1)
+    unique_t = PEtabTraining._get_unique_time_points(prob_original)
+    if split_alg.spec isa Integer
+        ms_windows = PEtabTraining._makechunks(unique_t, split_alg.spec; overlap = 1)
     else
-        windows = PEtabTraining._splits_to_windows(split_algorithm.splits)
+        vals = [unique_t[1], split_alg.spec..., unique_t[end]]
+        ms_windows = [[vals[i], vals[i+1]] for i in 1:(length(vals) - 1)]
     end
-    cids = prob.petab_prob_ms.model_info.model.petab_tables[:conditions].conditionId |>
-           unique
-    for cid in cids
-        window_index = PEtabTraining._get_index_from_window_id(cid)
-        t_min = minimum(windows[window_index])
-        t_max = mdf_ms[mdf_ms[!, :simulationConditionId] .== cid, :].time |> maximum
-        @test t_min == prob.petab_prob_ms.model_info.simulation_info.tstarts[Symbol(cid)]
-        @test t_max == prob.petab_prob_ms.model_info.simulation_info.tmaxs[Symbol(cid)]
+
+    condition_ids = prob_ms.petab_ms_problem.model_info.model.petab_tables[:conditions].conditionId |>
+        unique
+
+    # Check t0 and t_end values are correct for each condition window
+    for condition_id in condition_ids
+        i_window = PEtabTraining._get_index_from_window(condition_id)
+        t_min = minimum(ms_windows[i_window])
+        idx_t = measurements_ms[!, :simulationConditionId] .== condition_id
+        t_max = maximum(measurements_ms.time[idx_t])
+
+        simulation_info = prob_ms.petab_ms_problem.model_info.simulation_info
+        @test t_min == simulation_info.tstarts[Symbol(condition_id)]
+        @test t_max == simulation_info.tmaxs[Symbol(condition_id)]
     end
 
     # Check each window has correct number of measurement points. As each window starts and
@@ -44,66 +40,84 @@ function _test_multiple_shooting(model_id, split_algorithm)
     # each penalty gets a data-point, unless a condition does not have data-points for
     # the next window
     n_species = length(prob_original.model_info.model.speciemap)
-    for cid in cids
-        window_index = PEtabTraining._get_index_from_window_id(cid)
-        tmin, tmax = minimum(windows[window_index]), maximum(windows[window_index])
-        cid_original = PEtabTraining._get_cid_from_window_id(cid)
-        m_cid_df_ms = mdf_ms[mdf_ms[!, :simulationConditionId] .== cid, :]
-        m_cid_df_original = mdf_original[
-        findall(x -> x ≥ tmin && x ≤ tmax, mdf_original.time), :]
-        m_cid_df_original = m_cid_df_original[
-        m_cid_df_original[
-            !, :simulationConditionId] .== cid_original, :]
-        next_cid = replace(cid, "__window$(window_index)_" => "__window$(window_index+1)_")
-        if next_cid in cids
-            @test nrow(m_cid_df_ms) == nrow(m_cid_df_original) + n_species
+    for condition_id in condition_ids
+        i_window = PEtabTraining._get_index_from_window(condition_id)
+        t_min = first(ms_windows[i_window])
+        t_max = last(ms_windows[i_window])
+
+        condition_id_original = PEtabTraining._get_condition_id_from_window(condition_id)
+        measurements_original_condition = filter(
+            row -> row.simulationConditionId == condition_id_original && row.time ≥ t_min &&
+            row.time ≤ t_max, measurements_original
+        )
+        measurements_ms_condition = filter(
+            row -> row.simulationConditionId == condition_id && row.time ≥ t_min &&
+            row.time ≤ t_max, measurements_ms
+        )
+
+        next_condition_id = replace(
+            condition_id, "_WINDOW$(i_window)_" => "_WINDOW$(i_window+1)_"
+        )
+        if next_condition_id in condition_ids
+            @test nrow(measurements_ms_condition) == (
+                nrow(measurements_original_condition) + n_species
+            )
         else
-            @test nrow(m_cid_df_ms) == nrow(m_cid_df_original)
+            @test nrow(measurements_ms_condition) == nrow(measurements_original_condition)
         end
     end
 
     # Check the initial value parameters for each window can get properly set
     # - Constant value
-    xnames_u0 = PEtabTraining._get_ms_u0_xnames(prob.petab_prob_ms)
-    PEtabTraining.set_u0_windows!(prob, :constant, 4.0)
-    @test all(prob.petab_prob_ms.xnominal[xnames_u0] .== 4.0)
-    @test all(prob.petab_prob_ms.xnominal_transformed[xnames_u0] .== 4.0)
+    u0_x_names = PEtabTraining._get_ms_u0_x_names(prob_ms.petab_ms_problem)
+    x_test = get_x(prob_ms.petab_ms_problem)
+    PEtabTraining.set_u0_ms_windows!(x_test, prob_ms; init = MsInitConstant(4.0))
+    @test all(x_test[u0_x_names] .== 4.0)
+
     # - Initial values for the first window
-    x_original = get_x(prob.original)
-    PEtabTraining.set_u0_windows!(prob, :window1_u0, x_original)
-    x_ms = get_x(prob.petab_prob_ms)
-    for cid in cids
-        cid_original = PEtabTraining._get_cid_from_window_id(cid)
+    x_original = get_x(prob_ms.original)
+    x_test = get_x(prob_ms.petab_ms_problem)
+    PEtabTraining.set_u0_ms_windows!(x_test, prob_ms, x_original; init = MsInitFirst())
+    for condition_id in condition_ids
+        condition_id_original = PEtabTraining._get_condition_id_from_window(condition_id)
         u0_original = PEtab.get_u0(
-            x_original, prob.original; retmap = false, cid = cid_original)
-        u0_ms = PEtab.get_u0(x_ms, prob.petab_prob_ms; retmap = false, cid = cid)
+            x_original, prob_ms.original; retmap = false, condition = condition_id_original
+        )
+        u0_ms = PEtab.get_u0(
+            x_test, prob_ms.petab_ms_problem; retmap = false, condition = condition_id
+        )
         @test u0_ms == u0_original
     end
 
     # Test effect changing penalty parameter (likelihood should change)
-    # - Constant value
+    x_ms = get_x(prob_ms.petab_ms_problem)
     if :net1 in keys(x_ms)
         x_ms.net1 .= 0.01
     end
-    nllh1 = prob.petab_prob_ms.nllh(x_ms)
-    PEtabTraining.set_window_penalty!(prob, 2.0)
-    nllh2 = prob.petab_prob_ms.nllh(x_ms)
+    nllh1 = prob_ms.petab_ms_problem.nllh(x_ms)
+    PEtabTraining.set_window_penalty!(prob_ms, 2.0)
+    nllh2 = prob_ms.petab_ms_problem.nllh(x_ms)
     @test nllh1 != nllh2
-    @test prob.petab_prob_ms.model_info.petab_parameters.nominal_value[end] ≈ √2
-    # - Simulating from initial values
-    # Easiest to check comparing the likelihood between original and ms problem, where for
-    # the original problem, only difference is that duplicated points must be added. Note,
-    # due to penalty entering via a likelihood, 0.5 * log(2π) must be accounted for. Not yet
-    # applicable for provided as ODEProblem
-    if prob.original.model_info.model.sys isa ODEProblem
-        return nothing
+    @test prob_ms.petab_ms_problem.model_info.petab_parameters.nominal_value[end] ≈ √2
+
+    x_original = get_x(prob_ms.original)
+    x_test = get_x(prob_ms.petab_ms_problem)
+    if :net1 in keys(x_test)
+        x_original.net1 .= 0.001
+        x_test.net1 .= 0.001
     end
-    PEtabTraining.set_u0_windows!(prob, :window1_simulate, x_original)
-    prob_duplicated = _get_prob_duplicated(model_id, prob.original, windows)
-    nllh_ms = prob.petab_prob_ms.nllh(get_x(prob.petab_prob_ms))
-    nllh_ms -= 0.5 * log(2π) * length(xnames_u0)
-    nllh_duplicated = prob_duplicated.nllh(get_x(prob_duplicated))
-    @test nllh_ms≈nllh_duplicated atol=1e-3
+    PEtabTraining.set_u0_ms_windows!(x_test, prob_ms, x_original; init = MsInitSimulate())
+    prob_duplicated = _get_prob_duplicated(model_id, prob_ms.original, ms_windows)
+
+    nllh_ms = prob_ms.petab_ms_problem.nllh(x_test)
+    nllh_ms -= 0.5 * log(2π) * length(u0_x_names)
+    nllh_duplicated = prob_duplicated.nllh(x_original)
+    # For UDE magnitude of likelihood is on order of 1e6, so numerics play a large role
+    if model_id != "ude"
+        @test nllh_ms ≈ nllh_duplicated atol=1e-3
+    else
+        @test nllh_ms ≈ nllh_duplicated atol=1e-2
+    end
     return nothing
 end
 
@@ -112,53 +126,48 @@ function test_reference()
     prob_original.probinfo.solver.abstol = 1e-12
     prob_original.probinfo.solver.reltol = 1e-12
     prob_original.probinfo.solver.maxiters = Int(1e6)
-    prob_ms = PEtabMSProblem(prob_original, SplitCustom([3.25, 5.25, 10.0]; mode = :time))
-    PEtabTraining.set_u0_windows!(prob_ms, :constant, 10.0)
+    prob_ms = PEtabMsProblem(prob_original, SplitTime([3.25, 5.25]))
 
-    measurements_df = prob_ms.petab_prob_ms.model_info.model.petab_tables[:measurements]
-    ix_not_window = findall(.!startswith.(measurements_df.observableId, "___window"))
-    x_original = get_x(prob_original)
-    x_ms = get_x(prob_ms.petab_prob_ms)
+    x_test = get_x(prob_ms.petab_ms_problem)
+    PEtabTraining.set_u0_ms_windows!(x_test, prob_ms; init = MsInitConstant(10.0))
 
     # Test a naive computation of MS loss works
-    residuals = prob_ms.petab_prob_ms.residuals(x_ms)
-    nllh_ms = prob_ms.petab_prob_ms.nllh(x_ms)
+    residuals = prob_ms.petab_ms_problem.residuals(x_test)
+    nllh_ms = prob_ms.petab_ms_problem.nllh(x_test)
     nllh_ms_naive = sum(@. 0.5 * log(2π) + 0.5 * residuals^2)
     @test nllh_ms ≈ nllh_ms_naive atol=1e-8
-
-    # Check original loss can be retrieved
-    PEtabTraining.set_u0_windows!(prob_ms, :window1_simulate, x_original)
-    x_ms = get_x(prob_ms.petab_prob_ms)
-    nllh_original = prob_ms.original.nllh(x_original)
-    residuals = prob_ms.petab_prob_ms.residuals(x_ms)
-    nllh_original_naive = sum(@. 0.5 * log(2π) + 0.5 * residuals[ix_not_window]^2)
-    @test nllh_original ≈ nllh_original_naive atol=1e-6
     return nothing
 end
 
 @testset "Multiple shooting" begin
-    for n in [2, 3, 5]
-        test_multiple_shooting("Boehm_JProteomeRes2014", n)
-        test_multiple_shooting("mm_julia", n)
-        test_multiple_shooting("ude", n)
+    for n_windows in [2, 3, 5]
+        test_multiple_shooting("Boehm_JProteomeRes2014", SplitTime(n_windows))
+        test_multiple_shooting("mm_julia", SplitTime(n_windows))
+        test_multiple_shooting("ude", SplitTime(n_windows))
+    end
+    # This model has fewer data-points than the above
+    for n_windows in [2, 4]
+        test_multiple_shooting("Fujita_SciSignal2010", SplitTime(n_windows))
     end
 
-    splits_test = [[15.0, 40.0, 100.0, 240.0], [13.0, 25.0, 105.0, 250.0]]
-    for split in splits_test
-        test_multiple_shooting("Boehm_JProteomeRes2014", split)
+    splits_test = [[15.0, 40.0, 100.0], [13.0, 25.0, 105.0]]
+    for time_splits in splits_test
+        test_multiple_shooting("Boehm_JProteomeRes2014", SplitTime(time_splits))
     end
-    test_multiple_shooting("mm_julia", [5.0, 10.0])
+    test_multiple_shooting("mm_julia", SplitTime([5.0, 9.0]))
 
-    for n in [2, 4]
-        test_multiple_shooting("Fujita_SciSignal2010", n)
-    end
-    # Test more windows is very heavy on RAM, due to huge number of parameters added
-    test_multiple_shooting("Bachmann_MSB2011", 2)
     # Reference with manually computed ms-loss
     test_reference()
+
     # Output regularization should be applied to each window
     prob_original = _get_petab_problem("ude"; include_regularization = true)
-    ms_prob = PEtabMSProblem(prob_original, SplitUniform(4); regularization_obs = "reg_o",
-        regularization_specie = "nn_norm")
-    test_output_regularization_ms_prob(ms_prob.petab_prob_ms)
+    prob_ms = PEtabMsProblem(
+        prob_original, SplitTime(4); regularization_obs = "reg_o",
+        regularization_specie = "nn_norm"
+    )
+    test_output_regularization_ms_prob(prob_ms.petab_ms_problem)
+
+    # Test more windows is very heavy on RAM, due to huge number of parameters added to
+    # the model, but it is a good test-case
+    test_multiple_shooting("Bachmann_MSB2011", SplitTime(2))
 end

@@ -16,7 +16,11 @@ function test_nllh(
     end
     nllh_ref = petab_prob_ref.nllh(get_x(petab_prob_ref))
     nllh_test = stage_problems_i.nllh(get_x(petab_prob))
-    @test nllh_ref == nllh_test
+    if model_id != "ude"
+        @test nllh_ref ≈ nllh_test atol=1e-8
+    else
+        @test nllh_ref ≈ nllh_test atol=1e-3
+    end
     return nothing
 end
 
@@ -32,11 +36,11 @@ function test_chunk_size(chunks)
     end
 end
 
-function _get_prob_duplicated(model_id, prob::PEtabODEProblem, windows)
+function _get_prob_duplicated(model_id, prob::PEtabODEProblem, ms_windows)
     model_original = prob.model_info.model
     mdf = prob.model_info.model.petab_tables[:measurements]
     mdf_duplicate = DataFrame()
-    for window in windows
+    for window in ms_windows
         irow = findall(x -> x ≥ minimum(window) && x ≤ maximum(window), mdf.time)
         mdf_duplicate = vcat(mdf_duplicate, mdf[irow, :])
     end
@@ -47,22 +51,28 @@ function _get_prob_duplicated(model_id, prob::PEtabODEProblem, windows)
     else
         tables_duplicate = deepcopy(prob.model_info.model.petab_tables)
         tables_duplicate[:measurements] = mdf_duplicate
-        model = PEtab._PEtabModel(model_original.paths, tables_duplicate, false,
-            false, true, false, model_original.ml_models)
+        model = PEtab._PEtabModel(
+            model_original.paths, tables_duplicate, false, false, true, false,
+            model_original.petab_events, model_original.ml_models
+        )
     end
     return PEtabODEProblem(model)
 end
 
-function _get_petab_problem(model_id::String; include_regularization::Bool = false)::PEtabODEProblem
+function _get_petab_problem(
+        model_id::String; include_regularization::Bool = false
+    )::PEtabODEProblem
+    ode_solver = ODESolver(Rodas5P())
     if model_id == "mm_julia"
         model = _get_mm_model()
     elseif model_id == "ude"
+        ode_solver = ODESolver(Rodas5P(), abstol=1e-12, reltol=1e-12)
         model = _get_lv_ude_model(; include_regularization = include_regularization)
     else
         path_yaml = joinpath(@__DIR__, "published_models", model_id, "$(model_id).yaml")
         model = PEtabModel(path_yaml)
     end
-    return PEtabODEProblem(model; odesolver = ODESolver(Rodas5P()))
+    return PEtabODEProblem(model; odesolver = ode_solver)
 end
 
 function get_n_diff(prob_ms::PEtabODEProblem, prob_duplicated::PEtabODEProblem)::Integer

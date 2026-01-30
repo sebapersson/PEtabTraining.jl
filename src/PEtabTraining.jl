@@ -2,7 +2,7 @@ module PEtabTraining
 
 using ArgCheck: @argcheck
 import Catalyst
-import ComponentArrays
+import ComponentArrays: ComponentArrays, ComponentArray
 import CSV
 import DataFrames: DataFrames, DataFrame, nrow
 import PEtab: PEtab, PEtabModel, PEtabODEProblem
@@ -18,6 +18,7 @@ include(joinpath(@__DIR__, "multiple_shooting.jl"))
 include(joinpath(@__DIR__, "petab_odeproblem.jl"))
 include(joinpath(@__DIR__, "util.jl"))
 
-export PEtabClProblem, PEtabMSProblem, PEtabCLMSProblem, SplitTime, SplitData
+export PEtabClProblem, PEtabMsProblem, PEtabCLMSProblem, SplitTime, SplitData,
+    MsInitConstant, MsInitFirst, MsInitSimulate
 
 end

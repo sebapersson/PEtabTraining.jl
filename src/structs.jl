@@ -47,3 +47,39 @@ chunks, where `chunk_sizes[i]` gives the number of data points in chunk `i`.
 `chunk_sizes` must be sorted, and the final entry must equal the number of measurements.
 """
 SplitData(chunk_sizes::T) where T <: Vector{<:Integer} = SplitData{T}(chunk_sizes)
+
+"""
+    MsInitConstant(value::Real = 0.01)
+
+Initialization strategy for multiple-shooting window initial values, where each window
+initial value is set to `value`.
+
+See also [`set_u0_ms_windows!`](@ref).
+"""
+struct MsInitConstant{T<:Real}
+    value::T
+end
+MsInitConstant() = MsInitConstant{Float64}(0.01)
+
+"""
+    MsInitFirst()
+
+Initialization strategy for multiple-shooting window initial values, where all windows
+take the initial values of the first window (values at `t0`).
+
+See also [`set_u0_ms_windows!`](@ref).
+"""
+struct MsInitFirst end
+
+"""
+    MsInitSimulate()
+
+Initialization strategy for multiple-shooting window initial values, where each window
+initial value is set from a forward simulation of the model up to the start time of the
+corresponding window.
+
+The model is simulated using options stored in the PEtab problem.
+
+See also [`set_u0_ms_windows!`](@ref).
+"""
+struct MsInitSimulate end

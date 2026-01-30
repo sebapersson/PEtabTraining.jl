@@ -21,8 +21,10 @@ function _get_specie_ids(speciemap)
 end
 
 function _filter_condition_table!(petab_tables::PEtab.PEtabTables)::Nothing
-    conditions_df = petab_tables[:conditions]
-    measurements_df = petab_tables[:measurements]
+    conditions_df, measurements_df = PEtab._get_petab_tables(
+        petab_tables, [:conditions, :measurements]
+    )
+
     cids_measurements_df = unique(measurements_df.simulationConditionId)
     cid_remove = String[]
     for cid in conditions_df.conditionId
@@ -41,9 +43,7 @@ end
 
 function _get_unique_time_points(prob::PEtabODEProblem)::Vector{Float64}
     measurements_df = prob.model_info.model.petab_tables[:measurements]
-    return _get_unique_time_points(
-        measurements_df
-    )
+    return _get_unique_time_points(measurements_df)
 end
 function _get_unique_time_points(measurements_df::DataFrame)::Vector{Float64}
     return measurements_df.time |>

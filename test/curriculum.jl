@@ -73,7 +73,7 @@ end
 
 function test_output_regularization()
     petab_prob = _get_petab_problem("ude"; include_regularization = true)
-    cl_prob = PEtabClProblem(petab_prob, SplitUniform(4); regularization_obs = :reg_o)
+    cl_prob = PEtabClProblem(petab_prob, SplitTime(4); regularization_obs = :reg_o)
     for prob in cl_prob.petab_problems
         measurements_stage = prob.model_info.model.petab_tables[:measurements]
         @test "reg_o" in measurements_stage.observableId
@@ -84,7 +84,7 @@ function test_output_regularization()
     return nothing
 end
 
-#@testset "Curriculum learning" begin
+@testset "Curriculum learning" begin
     @testset "Uniform splitting time" begin
         for n_chunks in [2, 3, 5]
             test_split_uniform_time("Boehm_JProteomeRes2014", n_chunks)
@@ -129,8 +129,8 @@ end
         end
     end
 
-    #@testset "Custom data-points" begin
-        splits_test = [[3, 6, 8, 48], [20, 21, 30, 48]]
+    @testset "Custom data-points" begin
+        splits_test = [[3, 6, 8, 48], [20, 21, 48]]
         for chunk_sizes in splits_test
             test_split_custom_datapoints("Boehm_JProteomeRes2014", chunk_sizes)
         end

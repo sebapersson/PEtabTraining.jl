@@ -1,74 +1,108 @@
 """
-    set_u0_windows!(prob::Union{PEtabMSProblem, PEtabMSProblem}, method::Symbol, value)
+    set_u0_ms_windows!(x, prob_ms::PEtabMsProblem; init = MsInitConstant(0.0))
+    set_u0_ms_windows!(x, prob_ms::PEtabMsProblem, p; init = MsInitFirst())
+    set_u0_ms_windows!(x, prob_ms::PEtabMsProblem, p; init = MsInitSimulate())
+
+Set multiple-shooting window initial values in the multiple-shooting parameter vector `x`.
+
+`x` must be a parameter vector in the format expected by `prob_ms` (e.g. returned by
+`get_x(prob_ms)`). When provided, `p` must be a parameter vector compatible with either the
+original PEtab problem or the multiple-shooting PEtab problem.
+
+Initialization is controlled by `init`:
+- `MsInitConstant(value)`: Set all window initial values to `value`.
+- `MsInitFirst()`: Copy initial values from the first window to all windows.
+- `MsInitSimulate(...)`: Forward simulate the model and set each window initial value
+  from the simulated state at the window start time.
 """
-function set_u0_windows!(prob::PEtabCLMSProblem, method::Symbol, x)::Nothing
-    @unpack petab_problems, windows, original = prob
+function set_u0_ms_windows!(prob::PEtabCLMSProblem, method::Symbol, x)::Nothing
+    @unpack petab_problems, ms_windows, original = prob
     for i in 1:(length(petab_problems) - 1)
-        windows_stage = windows[Symbol("stage$(i)")]
-        _set_u0_windows!(petab_problems[i], original, windows_stage, method, x)
+        ms_windows_stage = ms_windows[Symbol("stage$(i)")]
+        _set_u0_ms_windows!(petab_problems[i], original, ms_windows_stage, method, x)
     end
     return nothing
 end
-function set_u0_windows!(prob::PEtabMSProblem, method::Symbol, x)::Nothing
-    @unpack petab_prob_ms, original, windows = prob
-    _set_u0_windows!(petab_prob_ms, original, windows, method, x)
+function set_u0_ms_windows!(
+        x::Union{Vector{<:Real}, ComponentArray}, prob::PEtabMsProblem;
+        init::MsInitConstant = MsInitConstant()
+    )::Nothing
+    @unpack petab_ms_problem = prob
+    _set_u0_ms_windows!(x, petab_ms_problem, init)
     return nothing
 end
+function set_u0_ms_windows!(
+        x::Union{Vector{<:Real}, ComponentArray}, prob::PEtabMsProblem,
+        p::Union{Vector{<:Real}, ComponentArray};
+        init::Union{MsInitFirst, MsInitSimulate} = MsInitFirst()
+    )::Nothing
 
-function _set_u0_windows!(prob::PEtabODEProblem, prob_original::PEtabODEProblem,
-        windows::Vector{Vector{Float64}}, method::Symbol, x)::Nothing
-    @argcheck method in [:constant, :window1_u0, :window1_simulate]
-    if method == :constant
-        @argcheck isa(x, Real) "For method :constant, x must be a Real value"
-    else
-        @argcheck isa(x, ComponentArrays.ComponentVector) || isa(x, AbstractVector) "For \
-            method :window1_*, x must be a ComponentVector or a Vector"
+    @unpack petab_ms_problem, original, ms_windows = prob
+    _set_u0_ms_windows!(x, petab_ms_problem, original, p, ms_windows, init)
+end
+
+function _set_u0_ms_windows!(
+        x, petab_ms_problem::PEtabODEProblem, init::MsInitConstant
+    )::Nothing
+    x_names = ComponentArrays.labels(petab_ms_problem.xnominal)
+
+    u0_x_names = _get_ms_u0_x_names(petab_ms_problem)
+    idx = [findfirst(x -> x == name, x_names) for name in string.(u0_x_names)]
+    u0_values = fill(init.value, length(idx))
+    PEtab.transform_x!(u0_values, u0_x_names, petab_ms_problem.model_info.xindices)
+    x[idx] .= u0_values
+    return nothing
+end
+function _set_u0_ms_windows!(
+        x, petab_ms_problem::PEtabODEProblem, original::PEtabODEProblem, p,
+        ::Vector{<:Vector{<:Real}}, ::MsInitFirst
+    )::Nothing
+    p_original = _get_p_original(p, petab_ms_problem, original)
+
+    specie_ids = _get_specie_ids(original)
+
+    x_names = ComponentArrays.labels(petab_ms_problem.xnominal)
+    u0_x_names = _get_ms_u0_x_names(petab_ms_problem)
+    for u0_x_name in string.(u0_x_names)
+        condition_id = _get_condition_id_from_window(u0_x_name)
+        specie_id = _get_specie_id_from_window(u0_x_name)
+
+        u0_condition_id = PEtab.get_u0(
+            p_original, original; retmap = false, condition = condition_id
+        )
+        u0_value = u0_condition_id[findfirst(x -> x == specie_id, specie_ids)]
+
+        idx = findfirst(x -> x == u0_x_name, x_names)
+        x[idx] = u0_value
     end
-    if method == :constant
-        _set_u0_windows_as_constant!(prob, x)
-    elseif method == :window1_u0
-        _set_u0_windows_as_window1(prob, prob_original, x)
-    else
-        _set_u0_windows_as_simulate!(prob, prob_original, windows, x)
-    end
-    _transform_x!(prob)
     return nothing
 end
+function _set_u0_ms_windows!(
+        x, petab_ms_problem::PEtabODEProblem, original::PEtabODEProblem, p,
+        ms_windows::Vector{<:Vector{<:Real}}, ::MsInitSimulate
+    )::Nothing
+    p_original = _get_p_original(p, petab_ms_problem, original)
 
-function _set_u0_windows_as_constant!(prob::PEtabODEProblem, value::Real)::Nothing
-    u0_xnames = _get_ms_u0_xnames(prob)
-    @views prob.xnominal[u0_xnames] .= value
-    return nothing
-end
+    specie_ids = _get_specie_ids(original)
 
-function _set_u0_windows_as_window1(prob::PEtabODEProblem, prob_original::PEtabODEProblem, x)::Nothing
-    specie_ids = _get_specie_ids(prob_original)
-    xnames_u0 = _get_ms_u0_xnames(prob)
-    for xname in xnames_u0
-        cid = _get_cid_from_window_id(xname)
-        specie_id = _get_specie_id_from_window_id(xname)
-        u0_cid = PEtab.get_u0(x, prob_original; retmap = false, cid = cid)
-        u0_value = u0_cid[findfirst(x -> x == specie_id, specie_ids)]
-        @views prob.xnominal[xname] = u0_value
-    end
-    return nothing
-end
+    x_names = ComponentArrays.labels(petab_ms_problem.xnominal)
+    u0_x_names = _get_ms_u0_x_names(petab_ms_problem)
 
-function _set_u0_windows_as_simulate!(
-        prob::PEtabODEProblem, prob_original::PEtabODEProblem,
-        windows::Vector{Vector{Float64}}, x)::Nothing
-    specie_ids = _get_specie_ids(prob_original)
-    xnames_u0 = _get_ms_u0_xnames(prob)
-    cids_original = string.(prob_original.model_info.simulation_info.conditionids[:experiment])
-    for cid in cids_original
-        sol = PEtab.get_odesol(x, prob_original; cid = cid)
-        for xname in xnames_u0
-            _cid = _get_cid_from_window_id(xname)
-            _cid != cid && continue
-            specie_id = _get_specie_id_from_window_id(xname)
+    condition_ids_original = string.(
+        original.model_info.simulation_info.conditionids[:experiment]
+    )
+    for condition_id in condition_ids_original
+        sol = PEtab.get_odesol(p_original, original; condition = condition_id)
+        for u0_x_name in string.(u0_x_names)
+            _condition_id = _get_condition_id_from_window(u0_x_name)
+            _condition_id != condition_id && continue
+
+            specie_id = _get_specie_id_from_window(u0_x_name)
             specie_index = findfirst(x -> x == specie_id, specie_ids)
-            t0_window = minimum(windows[_get_index_from_window_id(xname)])
-            @views prob.xnominal[xname] = sol(t0_window)[specie_index]
+            t0_window = minimum(ms_windows[_get_index_from_window(u0_x_name)])
+
+            idx = findfirst(x -> x == u0_x_name, x_names)
+            @views x[idx] = sol(t0_window)[specie_index]
         end
     end
     return nothing
@@ -80,8 +114,8 @@ function set_window_penalty!(prob::PEtabCLMSProblem, x::Real)::Nothing
     end
     return nothing
 end
-function set_window_penalty!(prob::PEtabMSProblem, x::Real)::Nothing
-    _set_window_penalty!(prob.petab_prob_ms, x)
+function set_window_penalty!(prob::PEtabMsProblem, x::Real)::Nothing
+    _set_window_penalty!(prob.petab_ms_problem, x)
     return nothing
 end
 
@@ -91,6 +125,26 @@ function _set_window_penalty!(prob::PEtabODEProblem, x::Real)::Nothing
     ix = findfirst(x -> x == :lambda_sqrt, petab_parameters.parameter_id)
     petab_parameters.nominal_value[ix] = sqrt(x)
     return nothing
+end
+
+function _get_p_original(
+        p, petab_ms_problem::PEtabODEProblem, original::PEtabODEProblem
+    )
+    x_original = original.xnominal_transformed
+    x_ms = petab_ms_problem.xnominal_transformed
+
+    if length(p) != length(x_original) && length(p) != x_ms
+        throw(ArgumentError("Input p must be a Vector/ComponentArray with equal \
+            length to either the parameter vector in the original PEtabODEProblem \
+            or the PEtabMs/PEtabClMS-Problem"))
+    end
+
+    if length(p) == length(x_original)
+        return p
+    end
+
+    idx = _perm_from_labels(xnominal_transformed, xnominal_transformed)
+    return p[idx]
 end
 
 """
