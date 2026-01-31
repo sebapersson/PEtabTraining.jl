@@ -1,6 +1,6 @@
 using CSV, DataFrames, PEtab, PEtabTraining, Test
 
-include(joinpath(@__DIR__, "helper.jl"))
+include(joinpath(@__DIR__, "common.jl"))
 
 function test_cl_ms(model_id, split_alg::SplitTime; window_u0_scale = :lin)
     @assert window_u0_scale in [:lin, :log10]
@@ -31,7 +31,7 @@ function test_cl_ms(model_id, split_alg::SplitTime; window_u0_scale = :lin)
     for i in 1:(n_windows - 1)
         prob_ms = prob_cl_ms.petab_problems[i]
         x_test = get_x(prob_ms)
-        PEtabTraining.set_u0_ms_windows!(x_test, prob_cl_ms, i; init = MsInitConstant(5.0))
+        set_u0_ms_windows!(x_test, prob_cl_ms, i; init = MsInitConstant(5.0))
 
         u0_x_names = PEtabTraining._get_ms_u0_x_names(prob_ms)
         if window_u0_scale == :lin
@@ -47,7 +47,7 @@ function test_cl_ms(model_id, split_alg::SplitTime; window_u0_scale = :lin)
     for i in 1:(n_windows - 1)
         prob_ms = prob_cl_ms.petab_problems[i]
         x_test = get_x(prob_ms)
-        PEtabTraining.set_u0_ms_windows!(
+        set_u0_ms_windows!(
             x_test, prob_cl_ms, i, x_original; init = MsInitFirst()
         )
 
@@ -71,10 +71,10 @@ function test_cl_ms(model_id, split_alg::SplitTime; window_u0_scale = :lin)
             x_test.net1 .= 0.1
         end
         nllh1 = prob_ms.nllh(x_test)
-        PEtabTraining.set_window_penalty!(prob_cl_ms, 2.0)
+        set_ms_window_penalty!(prob_cl_ms, 2.0)
         nllh2 = prob_ms.nllh(x_test)
         @test nllh1 != nllh2
-        PEtabTraining.set_window_penalty!(prob_cl_ms, 1.0)
+        set_ms_window_penalty!(prob_cl_ms, 1.0)
     end
 
     # Check that an x-vector can be mapped between stages with util functions
@@ -110,7 +110,7 @@ function test_cl_ms(model_id, split_alg::SplitTime; window_u0_scale = :lin)
             x_test.net1 .= 0.001
         end
 
-        PEtabTraining.set_u0_ms_windows!(
+        set_u0_ms_windows!(
             x_test, prob_cl_ms, i, x_original; init = MsInitSimulate()
         )
 
@@ -120,7 +120,7 @@ function test_cl_ms(model_id, split_alg::SplitTime; window_u0_scale = :lin)
         nllh_cl_ms = prob_ms.nllh(x_test)
         nllh_cl_ms -= 0.5 * log(2π) * get_n_diff(prob_ms, prob_duplicated)
         nllh_duplicated = prob_duplicated.nllh(x_original)
-        if model_id != "ude"
+        if model_id != "ude_model"
             @test nllh_cl_ms ≈ nllh_duplicated atol = 1.0e-3
         else
             @test nllh_cl_ms ≈ nllh_duplicated atol = 1.0e-2
@@ -133,15 +133,15 @@ end
 @testset "CL + MS" begin
     for n_windows in [2, 3, 5]
         test_cl_ms("Boehm_JProteomeRes2014", SplitTime(n_windows))
-        test_cl_ms("mm_julia", SplitTime(n_windows))
-        test_cl_ms("ude", SplitTime(n_windows))
+        test_cl_ms("mm_model_julia_defined", SplitTime(n_windows))
+        test_cl_ms("ude_model", SplitTime(n_windows))
     end
     for n_windows in [2, 4]
         test_cl_ms("Fujita_SciSignal2010", SplitTime(n_windows))
     end
 
     # Test initial window parameters can be estimated on log10-scale
-    test_cl_ms("mm_julia", SplitTime(3); window_u0_scale = :log10)
+    test_cl_ms("mm_model_julia_defined", SplitTime(3); window_u0_scale = :log10)
 
     splits_test = [[15.0, 40.0, 100.0], [13.0, 25.0, 105.0]]
     for time_splits in splits_test
@@ -149,7 +149,7 @@ end
     end
 
     # Output regularization should be applied to each window for each stage
-    prob_original = _get_petab_problem("ude"; include_regularization = true)
+    prob_original = _get_petab_problem("ude_model"; include_regularization = true)
     cl_ms_prob = PEtabClMsProblem(
         prob_original, SplitTime(4); regularization_obs = "reg_o",
         regularization_specie = "nn_norm"

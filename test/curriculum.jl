@@ -1,6 +1,6 @@
 using CSV, DataFrames, PEtab, PEtabTraining, Test
 
-include(joinpath(@__DIR__, "helper.jl"))
+include(joinpath(@__DIR__, "common.jl"))
 
 function test_split_uniform_time(model_id, n_chunks)
     petab_prob = _get_petab_problem(model_id)
@@ -73,7 +73,7 @@ function test_split_custom_datapoints(model_id, chunk_sizes)
 end
 
 function test_output_regularization()
-    petab_prob = _get_petab_problem("ude"; include_regularization = true)
+    petab_prob = _get_petab_problem("ude_model"; include_regularization = true)
     cl_prob = PEtabClProblem(petab_prob, SplitTime(4); regularization_obs = :reg_o)
     for prob in cl_prob.petab_problems
         measurements_stage = prob.model_info.model.petab_tables[:measurements]
@@ -94,10 +94,10 @@ end
             test_split_uniform_time("Weber_BMC2015", n_chunks)
         end
         for n_chunks in [3, 4]
-            test_split_uniform_time("mm_julia", n_chunks)
+            test_split_uniform_time("mm_model_julia_defined", n_chunks)
         end
         for n_chunks in [2, 3]
-            test_split_uniform_time("ude", n_chunks)
+            test_split_uniform_time("ude_model", n_chunks)
         end
         for n_chunks in [2, 7]
             test_split_uniform_time("Bachmann_MSB2011", n_chunks)
@@ -111,7 +111,7 @@ end
         end
         splits_test = [[1.5, 2.5], [1.3, 2.5, 4.0]]
         for time_split in splits_test
-            test_split_custom_time("mm_julia", time_split)
+            test_split_custom_time("mm_model_julia_defined", time_split)
         end
     end
 
@@ -120,7 +120,7 @@ end
             test_split_uniform_datapoints("Boehm_JProteomeRes2014", n_chunks)
         end
         for n_chunks in [2, 3, 6]
-            test_split_uniform_datapoints("mm_julia", n_chunks)
+            test_split_uniform_datapoints("mm_model_julia_defined", n_chunks)
         end
         for n_chunks in [3, 4, 6]
             test_split_uniform_datapoints("Weber_BMC2015", n_chunks)
@@ -137,7 +137,7 @@ end
         end
         splits_test = [[3, 6, 22, 42], [20, 30, 42]]
         for chunk_sizes in splits_test
-            test_split_custom_datapoints("mm_julia", chunk_sizes)
+            test_split_custom_datapoints("mm_model_julia_defined", chunk_sizes)
         end
     end
 

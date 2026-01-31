@@ -1,23 +1,38 @@
-include(joinpath(@__DIR__, "mm_model.jl"))
-include(joinpath(@__DIR__, "ude_model.jl"))
+import Suppressor
+
+include(joinpath(@__DIR__, "models", "mm_model.jl"))
+include(joinpath(@__DIR__, "models", "ude_model.jl"))
 
 function test_nllh(
-        model_id, mdf::DataFrame, mdf_tmp::DataFrame, petab_prob, stage_problems_i
+        model_id, measurements_df::DataFrame, measurements_df_tmp::DataFrame,
+        prob_original::PEtabODEProblem, prob_cl_stage::PEtabODEProblem
     )::Nothing
-    if model_id == "mm_julia"
-        petab_prob_ref = _get_mm_model(; measurements_df = mdf_tmp) |>
+    if model_id == "mm_model_julia_defined"
+        petab_prob_ref = _get_mm_model(; measurements_df = measurements_df_tmp) |>
             PEtabODEProblem
-    elseif model_id == "ude"
-        model = _get_lv_ude_model(; measurements_df = mdf_tmp)
+
+    elseif model_id == "ude_model"
+        model = _get_lv_ude_model(; measurements_df = measurements_df_tmp)
         petab_prob_ref = PEtabODEProblem(model; odesolver = ODESolver(Rodas5P()))
+
     else
-        CSV.write(petab_prob.model_info.model.paths[:measurements], mdf_tmp, delim = '\t')
-        petab_prob_ref = _get_petab_problem(model_id)
-        CSV.write(petab_prob.model_info.model.paths[:measurements], mdf, delim = '\t')
+        CSV.write(
+            prob_original.model_info.model.paths[:measurements], measurements_df_tmp,
+            delim = '\t'
+        )
+        # To avoid warnings due to subset of conditions not being in measurements df
+        petab_prob_ref = Suppressor.@suppress begin
+            _get_petab_problem(model_id)
+        end
+        CSV.write(
+            prob_original.model_info.model.paths[:measurements], measurements_df,
+            delim = '\t'
+        )
     end
+
     nllh_ref = petab_prob_ref.nllh(get_x(petab_prob_ref))
-    nllh_test = stage_problems_i.nllh(get_x(petab_prob))
-    if model_id != "ude"
+    nllh_test = prob_cl_stage.nllh(get_x(prob_original))
+    if model_id != "ude_model"
         @test nllh_ref ≈ nllh_test atol = 1.0e-8
     else
         @test nllh_ref ≈ nllh_test atol = 1.0e-3
@@ -40,19 +55,21 @@ end
 
 function _get_prob_duplicated(model_id, prob::PEtabODEProblem, ms_windows)
     model_original = prob.model_info.model
-    mdf = prob.model_info.model.petab_tables[:measurements]
-    mdf_duplicate = DataFrame()
+    measurements_df = prob.model_info.model.petab_tables[:measurements]
+    measurements_df_duplicate = DataFrame()
     for window in ms_windows
-        irow = findall(x -> x ≥ minimum(window) && x ≤ maximum(window), mdf.time)
-        mdf_duplicate = vcat(mdf_duplicate, mdf[irow, :])
+        irow = findall(
+            x -> x ≥ minimum(window) && x ≤ maximum(window), measurements_df.time
+        )
+        measurements_df_duplicate = vcat(measurements_df_duplicate, measurements_df[irow, :])
     end
-    if model_id == "mm_julia"
-        model = _get_mm_model(; measurements_df = mdf_duplicate)
-    elseif model_id == "ude"
-        model = _get_lv_ude_model(; measurements_df = mdf_duplicate)
+    if model_id == "mm_model_julia_defined"
+        model = _get_mm_model(; measurements_df = measurements_df_duplicate)
+    elseif model_id == "ude_model"
+        model = _get_lv_ude_model(; measurements_df = measurements_df_duplicate)
     else
         tables_duplicate = deepcopy(prob.model_info.model.petab_tables)
-        tables_duplicate[:measurements] = mdf_duplicate
+        tables_duplicate[:measurements] = measurements_df_duplicate
         model = PEtab._PEtabModel(
             model_original.paths, tables_duplicate, false, false, true, false,
             model_original.petab_events, model_original.ml_models
@@ -65,22 +82,22 @@ function _get_petab_problem(
         model_id::String; include_regularization::Bool = false
     )::PEtabODEProblem
     ode_solver = ODESolver(Rodas5P())
-    if model_id == "mm_julia"
+    if model_id == "mm_model_julia_defined"
         model = _get_mm_model()
-    elseif model_id == "ude"
+    elseif model_id == "ude_model"
         ode_solver = ODESolver(Rodas5P(), abstol = 1.0e-12, reltol = 1.0e-12)
         model = _get_lv_ude_model(; include_regularization = include_regularization)
     else
-        path_yaml = joinpath(@__DIR__, "published_models", model_id, "$(model_id).yaml")
+        path_yaml = joinpath(@__DIR__, "models", model_id, "$(model_id).yaml")
         model = PEtabModel(path_yaml)
     end
     return PEtabODEProblem(model; odesolver = ode_solver)
 end
 
 function get_n_diff(prob_ms::PEtabODEProblem, prob_duplicated::PEtabODEProblem)::Integer
-    mdf_ms = prob_ms.model_info.model.petab_tables[:measurements]
-    mdf_dup = prob_duplicated.model_info.model.petab_tables[:measurements]
-    return nrow(mdf_ms) - nrow(mdf_dup)
+    measurements_df_ms = prob_ms.model_info.model.petab_tables[:measurements]
+    measurements_df_dup = prob_duplicated.model_info.model.petab_tables[:measurements]
+    return nrow(measurements_df_ms) - nrow(measurements_df_dup)
 end
 
 function test_output_regularization_ms_prob(prob::PEtabODEProblem)::Nothing

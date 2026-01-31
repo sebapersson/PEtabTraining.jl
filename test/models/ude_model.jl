@@ -46,7 +46,7 @@ function _get_lv_ude_model(;
     ]
 
     if isnothing(measurements_df)
-        path_data = joinpath(@__DIR__, "lv_training_data.csv")
+        path_data = joinpath(@__DIR__, "ude_model_data.csv")
         training_data = CSV.read(path_data, DataFrame)
     else
         training_data = measurements_df

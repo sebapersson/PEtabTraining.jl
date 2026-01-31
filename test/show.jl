@@ -1,6 +1,6 @@
 using PEtabTraining, Test
 
-include(joinpath(@__DIR__, "helper.jl"))
+include(joinpath(@__DIR__, "common.jl"))
 
 # Basic show for each problem type
 model_id = "Boehm_JProteomeRes2014"
@@ -43,7 +43,7 @@ prob_cl2 = PEtabClProblem(prob_original, SplitTime(4))
     windows)\n  Penalty λ = 1.0e+00, window u0 parameters: 16\n  Window 1: tspan [0.0, \
     20.0]\n  Window 2: tspan [20.0, 80.0]\n  Window 3: tspan [80.0, 240.0]"
 
-@test "$(describe(prob_cl_ms; as_string=true))" == "PEtabClMsProblem \
+@test "$(describe(prob_cl_ms; as_string = true))" == "PEtabClMsProblem \
     Boehm_JProteomeRes2014\nProblem statistics\n  Parameters to estimate: 9\n  ODE: 8 \
     states, 10 parameters\n  Observables: 3\n  Simulation conditions: 1\n\nCurriculum \
     statistics (3 stages)\n  Window penalty λ = 1.0e+00\n  Stage 1: window tspans [0, 20], \

@@ -2,7 +2,7 @@ using PEtab, PEtabTraining, Test
 
 # Uniform splitting + curriculum
 model_id = "Weber_BMC2015"
-path_yaml = joinpath(@__DIR__, "published_models", model_id, "$(model_id).yaml")
+path_yaml = joinpath(@__DIR__, "models", model_id, "$(model_id).yaml")
 petab_prob = PEtabModel(path_yaml) |> PEtabODEProblem
 @test_throws ArgumentError begin
     PEtabClProblem(petab_prob, SplitTime(14))
@@ -13,7 +13,7 @@ end
 
 # Custom splitting + curriculum
 model_id = "Boehm_JProteomeRes2014"
-path_yaml = joinpath(@__DIR__, "published_models", model_id, "$(model_id).yaml")
+path_yaml = joinpath(@__DIR__, "models", model_id, "$(model_id).yaml")
 petab_prob = PEtabModel(path_yaml) |> PEtabODEProblem
 
 @test_throws ArgumentError begin
@@ -34,7 +34,7 @@ end
 
 # Multiple shooting unique errors
 model_id = "Boehm_JProteomeRes2014"
-path_yaml = joinpath(@__DIR__, "published_models", model_id, "$(model_id).yaml")
+path_yaml = joinpath(@__DIR__, "models", model_id, "$(model_id).yaml")
 petab_prob = PEtabModel(path_yaml) |> PEtabODEProblem
 @test_throws ArgumentError begin
     PEtabMsProblem(petab_prob, SplitTime(49))
@@ -47,7 +47,7 @@ end
 end
 
 model_id = "Weber_BMC2015"
-path_yaml = joinpath(@__DIR__, "published_models", model_id, "$(model_id).yaml")
+path_yaml = joinpath(@__DIR__, "models", model_id, "$(model_id).yaml")
 petab_prob = PEtabModel(path_yaml) |> PEtabODEProblem
 @test_throws ArgumentError begin
     PEtabMsProblem(petab_prob, SplitTime(4))
@@ -55,10 +55,10 @@ end
 
 # Combined approach
 model_id = "Boehm_JProteomeRes2014"
-path_yaml = joinpath(@__DIR__, "published_models", model_id, "$(model_id).yaml")
+path_yaml = joinpath(@__DIR__, "models", model_id, "$(model_id).yaml")
 petab_prob = PEtabModel(path_yaml) |> PEtabODEProblem
 prob_cl_ms = PEtabClMsProblem(petab_prob, SplitTime(3))
 x_test = get_x(prob_cl_ms.petab_problems[1])
 @test_throws ArgumentError begin
-    PEtabTraining.set_u0_ms_windows!(x_test, prob_cl_ms, 4; init = MsInitConstant(5.0))
+    set_u0_ms_windows!(x_test, prob_cl_ms, 4; init = MsInitConstant(5.0))
 end

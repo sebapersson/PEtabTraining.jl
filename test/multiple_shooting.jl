@@ -1,6 +1,6 @@
 using CSV, DataFrames, PEtab, PEtabTraining, Test
 
-include(joinpath(@__DIR__, "helper.jl"))
+include(joinpath(@__DIR__, "common.jl"))
 
 function test_multiple_shooting(model_id, split_alg::SplitTime; window_u0_scale = :lin)
     @assert window_u0_scale in [:lin, :log10]
@@ -73,7 +73,7 @@ function test_multiple_shooting(model_id, split_alg::SplitTime; window_u0_scale 
     # - Constant value
     u0_x_names = PEtabTraining._get_ms_u0_x_names(prob_ms.petab_ms_problem)
     x_test = get_x(prob_ms.petab_ms_problem)
-    PEtabTraining.set_u0_ms_windows!(x_test, prob_ms; init = MsInitConstant(4.0))
+    set_u0_ms_windows!(x_test, prob_ms; init = MsInitConstant(4.0))
     if window_u0_scale == :lin
         @test all(x_test[u0_x_names] .== 4.0)
     elseif window_u0_scale == :log10
@@ -84,7 +84,7 @@ function test_multiple_shooting(model_id, split_alg::SplitTime; window_u0_scale 
     # - Initial values for the first window
     x_original = get_x(prob_ms.original)
     x_test = get_x(prob_ms.petab_ms_problem)
-    PEtabTraining.set_u0_ms_windows!(x_test, prob_ms, x_original; init = MsInitFirst())
+    set_u0_ms_windows!(x_test, prob_ms, x_original; init = MsInitFirst())
     for condition_id in condition_ids
         condition_id_original = PEtabTraining._get_condition_id_from_window(condition_id)
         u0_original = PEtab.get_u0(
@@ -102,7 +102,7 @@ function test_multiple_shooting(model_id, split_alg::SplitTime; window_u0_scale 
         x_ms.net1 .= 0.01
     end
     nllh1 = prob_ms.petab_ms_problem.nllh(x_ms)
-    PEtabTraining.set_window_penalty!(prob_ms, 2.0)
+    set_ms_window_penalty!(prob_ms, 2.0)
     nllh2 = prob_ms.petab_ms_problem.nllh(x_ms)
     @test nllh1 != nllh2
     @test prob_ms.petab_ms_problem.model_info.petab_parameters.nominal_value[end] ≈ √2
@@ -113,14 +113,14 @@ function test_multiple_shooting(model_id, split_alg::SplitTime; window_u0_scale 
         x_original.net1 .= 0.001
         x_test.net1 .= 0.001
     end
-    PEtabTraining.set_u0_ms_windows!(x_test, prob_ms, x_original; init = MsInitSimulate())
+    set_u0_ms_windows!(x_test, prob_ms, x_original; init = MsInitSimulate())
     prob_duplicated = _get_prob_duplicated(model_id, prob_ms.original, ms_windows)
 
     nllh_ms = prob_ms.petab_ms_problem.nllh(x_test)
     nllh_ms -= 0.5 * log(2π) * length(u0_x_names)
     nllh_duplicated = prob_duplicated.nllh(x_original)
     # For UDE magnitude of likelihood is on order of 1e6, so numerics play a large role
-    if model_id != "ude"
+    if model_id != "ude_model"
         @test nllh_ms ≈ nllh_duplicated atol = 1.0e-3
     else
         @test nllh_ms ≈ nllh_duplicated atol = 1.0e-2
@@ -129,14 +129,14 @@ function test_multiple_shooting(model_id, split_alg::SplitTime; window_u0_scale 
 end
 
 function test_reference()
-    prob_original = _get_petab_problem("mm_julia")
+    prob_original = _get_petab_problem("mm_model_julia_defined")
     prob_original.probinfo.solver.abstol = 1.0e-12
     prob_original.probinfo.solver.reltol = 1.0e-12
     prob_original.probinfo.solver.maxiters = Int(1.0e6)
     prob_ms = PEtabMsProblem(prob_original, SplitTime([3.25, 5.25]))
 
     x_test = get_x(prob_ms.petab_ms_problem)
-    PEtabTraining.set_u0_ms_windows!(x_test, prob_ms; init = MsInitConstant(10.0))
+    set_u0_ms_windows!(x_test, prob_ms; init = MsInitConstant(10.0))
 
     # Test a naive computation of MS loss works
     residuals = prob_ms.petab_ms_problem.residuals(x_test)
@@ -149,8 +149,8 @@ end
 @testset "Multiple shooting" begin
     for n_windows in [2, 3, 5]
         test_multiple_shooting("Boehm_JProteomeRes2014", SplitTime(n_windows))
-        test_multiple_shooting("mm_julia", SplitTime(n_windows))
-        test_multiple_shooting("ude", SplitTime(n_windows))
+        test_multiple_shooting("mm_model_julia_defined", SplitTime(n_windows))
+        test_multiple_shooting("ude_model", SplitTime(n_windows))
     end
     # This model has fewer data-points than the above
     for n_windows in [2, 4]
@@ -158,19 +158,19 @@ end
     end
 
     # Test that estimating window-parameters on log10-scale is feasible
-    test_multiple_shooting("mm_julia", SplitTime(3); window_u0_scale = :log10)
+    test_multiple_shooting("mm_model_julia_defined", SplitTime(3); window_u0_scale = :log10)
 
     splits_test = [[15.0, 40.0, 100.0], [13.0, 25.0, 105.0]]
     for time_splits in splits_test
         test_multiple_shooting("Boehm_JProteomeRes2014", SplitTime(time_splits))
     end
-    test_multiple_shooting("mm_julia", SplitTime([5.0, 9.0]))
+    test_multiple_shooting("mm_model_julia_defined", SplitTime([5.0, 9.0]))
 
     # Reference with manually computed ms-loss
     test_reference()
 
     # Output regularization should be applied to each window
-    prob_original = _get_petab_problem("ude"; include_regularization = true)
+    prob_original = _get_petab_problem("ude_model"; include_regularization = true)
     prob_ms = PEtabMsProblem(
         prob_original, SplitTime(4); regularization_obs = "reg_o",
         regularization_specie = "nn_norm"

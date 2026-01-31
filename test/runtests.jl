@@ -16,6 +16,10 @@ end
     include("cl_ms_combined.jl")
 end
 
+@safetestset "show" begin
+    include("show.jl")
+end
+
 @safetestset "Util functions" begin
     include("util.jl")
 end
