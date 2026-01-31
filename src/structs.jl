@@ -128,12 +128,12 @@ initial-value parameter `\tilde{u}_{i+1}`, the penalty used is
 ```
 
 where ``u_i(t_i)`` is the state at the end of window ``i``, and ``\\lambda`` is the
-window-penalty weight (can be set with [`set_window_penalty!`](@ref)).
+window-penalty weight (can be set with [`set_ms_window_penalty!`](@ref)).
 
 Initial values for the window parameters `\tilde{u}_{i+1}` can be set with
 [`set_u0_ms_windows!`](@ref) (default `0.01`).
 
-See also [`SplitTime`](@ref), [`set_window_penalty!`](@ref), [`set_u0_ms_windows!`](@ref).
+See also [`SplitTime`](@ref), [`set_ms_window_penalty!`](@ref), [`set_u0_ms_windows!`](@ref).
 """
 struct PEtabMsProblem
     petab_ms_problem::PEtabODEProblem
@@ -158,14 +158,14 @@ Each intermediate stage is a multiple-shooting problem with a different window p
 
 As in [`PEtabMsProblem`](@ref), each multiple-shooting stage includes a quadratic window
 penalty applied at the first time point shared by two consecutive windows; the penalty
-weight can be set with [`set_window_penalty!`](@ref).
+weight can be set with [`set_ms_window_penalty!`](@ref).
 
 Because the number of shooting windows changes between stages, the parameter vector dimension
 changes as well. Use [`map_x_stage`](@ref) to map a parameter vector between stages.
 
 Keyword arguments are forwarded to [`PEtabMsProblem`](@ref) (`window_u0_scale`).
 
-See also [`SplitTime`](@ref), [`PEtabMsProblem`](@ref), [`set_window_penalty!`](@ref),
+See also [`SplitTime`](@ref), [`PEtabMsProblem`](@ref), [`set_ms_window_penalty!`](@ref),
 [`map_x_stage`](@ref).
 """
 struct PEtabClMsProblem

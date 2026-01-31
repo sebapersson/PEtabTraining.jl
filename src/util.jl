@@ -12,7 +12,7 @@ original PEtab problem or the multiple-shooting PEtab problem.
 Initialization is controlled by `init`:
 - `MsInitConstant(value)`: Set all window initial values to `value`.
 - `MsInitFirst()`: Copy initial values from the first window to all windows.
-- `MsInitSimulate(...)`: Forward simulate the model and set each window initial value
+- `MsInitSimulate()`: Forward simulate the model and set each window initial value
   from the simulated state at the window start time.
 """
 function set_u0_ms_windows!(
@@ -150,23 +150,44 @@ function _set_u0_ms_windows!(
     return nothing
 end
 
-function set_window_penalty!(prob::PEtabClMsProblem, x::Real)::Nothing
-    for i in 1:(length(prob.petab_problems) - 1)
-        _set_window_penalty!(prob.petab_problems[i], x)
+"""
+    set_ms_window_penalty!(prob_ms::PEtabMsProblem, val::Real)
+
+Set the multiple-shooting window-penalty weight to `val` for `prob_ms`.
+
+See [`PEtabMsProblem`](@ref) for the definition of the window penalty.
+"""
+function set_ms_window_penalty!(prob_ms::PEtabMsProblem, val::Real)::Nothing
+    _set_ms_window_penalty!(prob_ms.petab_ms_problem, val)
+    return nothing
+end
+"""
+    set_ms_window_penalty!(prob_cl_ms::PEtabClMsProblem, val::Real)
+
+Set the multiple-shooting window-penalty weight to `val` for each multiple-shooting stage
+problem in `prob_cl_ms`.
+
+See [`PEtabMsProblem`](@ref) for the definition of the window penalty.
+"""
+function set_ms_window_penalty!(prob_cl_ms::PEtabClMsProblem, val::Real)::Nothing
+    for i in 1:(length(prob_cl_ms.petab_problems) - 1)
+        _set_ms_window_penalty!(prob_cl_ms.petab_problems[i], val)
     end
     return nothing
 end
-function set_window_penalty!(prob::PEtabMsProblem, x::Real)::Nothing
-    _set_window_penalty!(prob.petab_ms_problem, x)
+
+function _set_ms_window_penalty!(prob::PEtabODEProblem, val::Real)::Nothing
+    @argcheck val ≥ 0 "Multiple shooting window penalty parameter value must be ≥0"
+    petab_parameters = prob.model_info.petab_parameters
+    ix = findfirst(x -> x == :lambda_sqrt, petab_parameters.parameter_id)
+    petab_parameters.nominal_value[ix] = sqrt(val)
     return nothing
 end
 
-function _set_window_penalty!(prob::PEtabODEProblem, x::Real)::Nothing
-    @argcheck x ≥ 0 "Multiple shooting window penalty parameter must be ≥0"
+function _get_ms_window_penalty(prob::PEtabODEProblem)::Real
     petab_parameters = prob.model_info.petab_parameters
     ix = findfirst(x -> x == :lambda_sqrt, petab_parameters.parameter_id)
-    petab_parameters.nominal_value[ix] = sqrt(x)
-    return nothing
+    return petab_parameters.nominal_value[ix]^2
 end
 
 function _get_p_original(

@@ -24,19 +24,29 @@ function _filter_condition_table!(petab_tables::PEtab.PEtabTables)::Nothing
         petab_tables, [:conditions, :measurements]
     )
 
-    cids_measurements_df = unique(measurements_df.simulationConditionId)
-    cid_remove = String[]
-    for cid in conditions_df.conditionId
-        cid in cids_measurements_df && continue
-        if "preequilibrationConditionId" in names(measurements_df)
-            cond = cid in measurements_df.preequilibrationConditionId
-            ismissing(cond) && continue
-            cond == true && continue
+    simulation_ids = measurements_df.simulationConditionId
+    if "preequilibrationConditionId" in names(measurements_df)
+        idx = findall(x -> !ismissing(x), measurements_df.preequilibrationConditionId)
+        pre_eq_ids = if isnothing(idx)
+            String[]
+        else
+            measurements_df.preequilibrationConditionId[idx]
         end
-        push!(cid_remove, cid)
+    else
+        pre_eq_ids = String[]
     end
-    _conditions_df = filter(row -> !(row.conditionId in cid_remove), conditions_df)
-    petab_tables[:conditions] = _conditions_df
+    condition_ids_measurements_df = unique(vcat(simulation_ids, pre_eq_ids))
+
+    condition_ids_remove = String[]
+    for condition_id in conditions_df.conditionId
+        condition_id in condition_ids_measurements_df && continue
+        push!(condition_ids_remove, condition_id)
+    end
+
+    conditions_cl_df = filter(
+        row -> !in(row.conditionId, condition_ids_remove), conditions_df
+    )
+    petab_tables[:conditions] = conditions_cl_df
     return nothing
 end
 
