@@ -22,7 +22,6 @@ include(joinpath(@__DIR__, "show.jl"))
 include(joinpath(@__DIR__, "util.jl"))
 
 export PEtabClProblem, PEtabMsProblem, PEtabClMsProblem, SplitTime, SplitData,
-    MsInitConstant, MsInitFirst, MsInitSimulate, set_u0_ms_windows!, set_ms_window_penalty!,
-    describe
+    MsInitConstant, MsInitFirst, MsInitSimulate, set_u0_ms_windows!, set_ms_window_penalty!
 
 end

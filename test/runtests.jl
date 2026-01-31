@@ -1,5 +1,9 @@
 using SafeTestsets
 
+@safetestset "Aqua" begin
+    include("aqua.jl")
+end
+
 @safetestset "Curriculum learning" begin
     include("curriculum.jl")
 end
