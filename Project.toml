@@ -14,8 +14,8 @@ StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 StyledStrings = "f489334b-da3d-4c2e-b8f0-e476e12c162b"
 
 [compat]
-ArgCheck = "2.1"
 Aqua = "0.8.14"
+ArgCheck = "2.1"
 Catalyst = "15.0.8"
 ComponentArrays = "0.15.30"
 CSV = "0.10"

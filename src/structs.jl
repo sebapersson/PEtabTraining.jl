@@ -111,26 +111,34 @@ In the constructed `prob_ms`, the multiple-shooting `PEtabODEProblem` is stored 
 `prob_ms.petab_ms_problem`, and the original problem is stored in `prob_ms.original`.
 
 # Keyword arguments
-- `window_u0_scale::Symbol = :lin`: Scale used for the estimated window initial-value
-  parameters (`:lin`, `:log`, `:log10`). For problems where ODE states span orders
-  of  magnitude, `:log10` often improves performance. Any other option than `:lin`
-  should only be applied if states are positive as it enforces positive state-values.
+- `window_u0_scale::Symbol = :lin`: Scale for estimating the window initial-value parameters
+  on (`:lin`, `:log`, `:log10`). For problems where ODE states span orders of magnitude,
+  `:log10` often improves performance. Any option other than `:lin` should only be used if
+  states are strictly positive, since it requires (and thus enforces) positive values.
+- `window_u0_penalty_scale::Symbol = :lin`: Scale used for the ODE states
+  (``u`` and ``\\tilde{u}`` below) in the  window-continuity penalty formula (`:lin`,
+  `:log`, `:log10`). Log scales can help when state values span orders of magnitude and it
+  is difficult to choose a single penalty weight suitable for all states, but requires
+  strictly positive ODE states.
 
 # Mathematical description
 
 Multiple shooting introduces additional window initial-value parameters that are estimated
 together with the original parameters. Window continuity is enforced by adding a quadratic
-penalty at each window boundary. For consecutive windows with end time `t_i` and next-window
-initial-value parameter `\tilde{u}_{i+1}`, the penalty used is
+penalty at each window boundary. For consecutive windows with end time ``t_i`` and
+next-window initial-value parameter ``\\tilde{u}_{i+1}``, the penalty used is
 
 ```math
 \\lambda \\left\\lVert u_i(t_i) - \\tilde{u}_{i+1} \\right\\rVert_2^2,
 ```
 
 where ``u_i(t_i)`` is the state at the end of window ``i``, and ``\\lambda`` is the
-window-penalty weight (can be set with [`set_ms_window_penalty!`](@ref)).
+window-penalty weight (can be set with [`set_ms_window_penalty!`](@ref)). If
+`window_u0_penalty_scale != :lin`, the penalty is applied on the transformed scale, i.e.
+``s(u_i(t_i)) - s(\\tilde{u}_{i+1})`` (elementwise), with ``s`` being either ``log`` or
+``log10``.
 
-Initial values for the window parameters `\tilde{u}_{i+1}` can be set with
+Initial values for the window parameters ``\\tilde{u}_{i+1}`` can be set with
 [`set_u0_ms_windows!`](@ref) (default `0.01`).
 
 See also [`SplitTime`](@ref), [`set_ms_window_penalty!`](@ref), [`set_u0_ms_windows!`](@ref).
@@ -141,6 +149,7 @@ struct PEtabMsProblem
     split_alg::SplitTime
     ms_windows::Vector{Vector{Float64}}
     window_u0_scale::Symbol
+    window_penalty_scale::Symbol
 end
 
 """
@@ -153,17 +162,22 @@ In the constructed `prob_cl_ms`, stage problems are stored in `prob_cl_ms.petab_
 where `prob_cl_ms.petab_problems[i]` is the `PEtabODEProblem` for curriculum stage `i`. The
 original problem is stored in `prob_cl_ms.original`.
 
-Each intermediate stage is a multiple-shooting problem with a different window partition
-(with increasing window length and overlap). The final stage equals the original problem.
+# Keyword Arguments
+
+Keyword arguments are the same as for [`PEtabMsProblem`](@ref)
+(`window_u0_scale`, `window_u0_penalty_scale`).
+
+# Description
+
+A `PEtabClMsProblem` is a curriculum of problems, where each intermediate stage is a
+multiple-shooting problem with a different window partition (with increasing window length
+and overlap). The final stage equals the original problem. Because the number of shooting
+windows changes between stages, the parameter vector dimension changes as well. Use
+[`map_x_stage`](@ref) to map a parameter vector between stages.
 
 As in [`PEtabMsProblem`](@ref), each multiple-shooting stage includes a quadratic window
 penalty applied at the first time point shared by two consecutive windows; the penalty
 weight can be set with [`set_ms_window_penalty!`](@ref).
-
-Because the number of shooting windows changes between stages, the parameter vector dimension
-changes as well. Use [`map_x_stage`](@ref) to map a parameter vector between stages.
-
-Keyword arguments are forwarded to [`PEtabMsProblem`](@ref) (`window_u0_scale`).
 
 See also [`SplitTime`](@ref), [`PEtabMsProblem`](@ref), [`set_ms_window_penalty!`](@ref),
 [`map_x_stage`](@ref).
@@ -174,4 +188,5 @@ struct PEtabClMsProblem
     split_alg::SplitTime
     ms_windows::Dict{Symbol, Vector{Vector{Float64}}}
     window_u0_scale::Symbol
+    window_u0_penalty_scale::Symbol
 end

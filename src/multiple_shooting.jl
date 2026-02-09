@@ -2,7 +2,7 @@ function PEtabMsProblem(
         prob_original::PEtabODEProblem, split_alg::SplitTime;
         regularization_obs::Union{Nothing, String, Symbol} = nothing,
         regularization_specie::Union{Nothing, String, Symbol} = nothing,
-        window_u0_scale::Symbol = :lin
+        window_u0_scale::Symbol = :lin, window_penalty_scale = :lin
     )::PEtabMsProblem
     if prob_original.model_info.simulation_info.has_pre_equilibration
         throw(ArgumentError("Multiple shooting is not supported for models with \
@@ -10,23 +10,26 @@ function PEtabMsProblem(
     end
 
     @argcheck window_u0_scale in [:lin, :log, :log10]
+    @argcheck window_penalty_scale in [:lin, :log, :log10]
 
     _check_regularization_specie(regularization_obs, regularization_specie)
 
     ms_windows = _split_ms(split_alg, prob_original)
     petab_ms_problem = _get_petab_ms_problem(
-        prob_original, ms_windows, window_u0_scale, _string(regularization_obs),
-        _string(regularization_specie)
+        prob_original, ms_windows, window_u0_scale, window_penalty_scale,
+        _string(regularization_obs), _string(regularization_specie)
     )
 
     return PEtabMsProblem(
-        petab_ms_problem, prob_original, split_alg, ms_windows, window_u0_scale
+        petab_ms_problem, prob_original, split_alg, ms_windows, window_u0_scale,
+        window_penalty_scale
     )
 end
 
 function _get_petab_ms_problem(
         prob_original::PEtabODEProblem, ms_windows::Vector{<:Vector{<:Real}},
-        window_u0_scale::Symbol, regularization_obs::Union{Nothing, String},
+        window_u0_scale::Symbol, window_penalty_scale::Symbol,
+        regularization_obs::Union{Nothing, String},
         regularization_specie::Union{Nothing, String}
     )::PEtabODEProblem
     _check_regularization_obs(regularization_obs, prob_original)
@@ -46,7 +49,8 @@ function _get_petab_ms_problem(
     )
     _add_ms_windows!(
         petab_tables_ms, measurements_original, conditions_original, ms_windows,
-        speciemap, window_u0_scale, regularization_obs, regularization_specie
+        speciemap, window_u0_scale, window_penalty_scale, regularization_obs,
+        regularization_specie
     )
     _add_window_penalty_parameter!(petab_tables_ms)
 
@@ -127,7 +131,8 @@ end
 function _add_ms_windows!(
         petab_tables::PEtab.PEtabTables, measurements_original::DataFrame,
         conditions_original::DataFrame, ms_windows::Vector{<:Vector{<:Real}},
-        speciemap::Vector, window_u0_scale::Symbol, regularization_obs, regularization_specie
+        speciemap::Vector, window_u0_scale::Symbol, window_penalty_scale::Symbol,
+        regularization_obs, regularization_specie
     )::Nothing
     specie_ids = _get_specie_ids(speciemap)
 
@@ -136,7 +141,7 @@ function _add_ms_windows!(
             _add_overlap_ms_windows!(
                 petab_tables, condition_id, measurements_original, conditions_original,
                 ms_windows[i_window], i_window, specie_ids, window_u0_scale,
-                regularization_specie
+                window_penalty_scale, regularization_specie
             )
         end
 
@@ -152,7 +157,7 @@ function _add_overlap_ms_windows!(
         petab_tables_ms::PEtab.PEtabTables, condition_id::String,
         measurements_original::DataFrame, conditions_original::DataFrame,
         ms_window::Vector{<:Real}, i_window::Integer, specie_ids::Vector{String},
-        window_u0_scale::Symbol, regularization_specie
+        window_u0_scale::Symbol, window_penalty_scale::Symbol, regularization_specie
     )::Nothing
     measurements_df, conditions_df, parameters_df, observable_df = PEtab._get_petab_tables(
         petab_tables_ms, [:measurements, :conditions, :parameters, :observables]
@@ -202,9 +207,14 @@ function _add_overlap_ms_windows!(
         # Observable. Multiple window penalty is given by lambda_sqrt as the
         # parameter will be squared during the likelihood computations.
         observable_id = _get_window_id(condition_id, i_window, specie_id, :observable)
+        if window_penalty_scale == :lin
+            obs_formula = "lambda_sqrt * ($(specie_id) - $(parameter_id))"
+        else
+            ft = "$window_penalty_scale"
+            obs_formula = "lambda_sqrt * ($(ft)(abs($(specie_id))) - $(ft)($(parameter_id)))"
+        end
         obs_df = DataFrame(
-            observableId = observable_id,
-            observableFormula = "lambda_sqrt * ($(specie_id) - $(parameter_id))",
+            observableId = observable_id, observableFormula = obs_formula,
             noiseFormula = "1.0", observableTransformation = "lin",
             noiseDistribution = "normal"
         )
