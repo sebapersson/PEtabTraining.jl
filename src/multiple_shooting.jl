@@ -204,6 +204,11 @@ function _add_overlap_ms_windows!(
             condition_df[!, specie_id] .= parameter_id
         end
 
+        # Output regularization species are not included in the penalty
+        if specie_id == regularization_specie
+            continue
+        end
+
         # Observable. Multiple window penalty is given by lambda_sqrt as the
         # parameter will be squared during the likelihood computations.
         observable_id = _get_window_id(condition_id, i_window, specie_id, :observable)
