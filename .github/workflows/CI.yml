@@ -1,0 +1,116 @@
+name: CI
+on:
+  push:
+    branches:
+      - main
+    tags: ['*']
+  pull_request:
+concurrency:
+  # Skip intermediate builds: always.
+  # Cancel intermediate builds: only if it is a pull request build.
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
+jobs:
+  # Full time consuming test-suite, only Linux
+  test_full:
+    name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.arch }} - ${{ github.event_name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        version:
+          - '1.10'
+          - '1.12'
+        os:
+          - ubuntu-latest
+        arch:
+          - x64
+    env:
+      PYTHON: ""
+    steps:
+      - uses: actions/checkout@v2
+      - uses: julia-actions/setup-julia@v1
+        with:
+          version: ${{ matrix.version }}
+          arch: ${{ matrix.arch }}
+      - uses: julia-actions/cache@v1
+      - uses: julia-actions/julia-buildpkg@v1
+      - uses: julia-actions/julia-runtest@v1
+        continue-on-error: ${{ matrix.version == 'nightly' }}
+      - uses: julia-actions/julia-processcoverage@v1
+      - uses: codecov/codecov-action@v4
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+  # Core tests on multiple operating systems
+  test_core:
+    name: Core tests – ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+        julia: ['1.12']
+    steps:
+      - uses: actions/checkout@v2
+      - uses: julia-actions/setup-julia@v1
+        with:
+          version: ${{ matrix.julia }}
+      - uses: julia-actions/cache@v1
+      - uses: julia-actions/julia-buildpkg@v1
+      # ------ run only the core subset ------
+      - name: Run core test-suite
+        env:
+          CORE_ONLY: "true"      # picked up inside runtests.jl
+        run: julia --project=. -e 'using Pkg; Pkg.test()'
+  docs:
+    name: Documentation
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v2
+      - uses: julia-actions/setup-julia@v1
+        with:
+          version: '1'
+      - uses: julia-actions/julia-buildpkg@v1
+      - uses: julia-actions/julia-docdeploy@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - run: |
+          julia --project=docs -e '
+            using Documenter: DocMeta, doctest
+            using PEtabTraining
+            DocMeta.setdocmeta!(PEtabTraining, :DocTestSetup, :(using PEtabTraining); recursive=true)
+            doctest(PEtabTraining)'
+  update_testsuite_csv:
+    name: Update SBML testsuite support
+    needs: [test_full, test_core, docs]
+    if: github.ref == 'refs/heads/main'      
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: julia-actions/setup-julia@v1
+        with:
+          version: '1.12'
+      - run: julia -e 'using Pkg; Pkg.add.(["CSV", "DataFrames"])'
+      - name: Generate testsuite CSV file
+        run: julia test/export_testsuite_support.jl
+      - name: Create PR with updated CSV
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: ci/update-testsuite-csv        
+          title: "ci: auto-update testsuite CSV"
+          commit-message: "ci: auto-update testsuite CSV"
+          body: "This PR was created automatically by the CI workflow."
+          add-paths: sbml_testsuite_support.csv  
+          delete-branch: true                    
+
