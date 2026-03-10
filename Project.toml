@@ -16,7 +16,7 @@ StyledStrings = "f489334b-da3d-4c2e-b8f0-e476e12c162b"
 [compat]
 Aqua = "0.8.14"
 ArgCheck = "2.1"
-Catalyst = "15.0.8"
+Catalyst = "16"
 ComponentArrays = "0.15.30"
 CSV = "0.10"
 DataFrames = "1.8"
