@@ -1,5 +1,6 @@
 # PEtabTraining.jl
-*Training strategies for parameter estimation in dynamic (ODE) models*
+
+_Training strategies for parameter estimation in dynamic models_
 
 [![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://sebapersson.github.io/PEtabTraining.jl/stable/)
 [![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://sebapersson.github.io/PEtabTraining.jl/dev/)
@@ -11,32 +12,31 @@
 [Documentation](https://sebapersson.github.io/PEtabTraining.jl/stable/) |
 [Contributing](https://sebapersson.github.io/PEtabTraining.jl/CONTRIBUTING.md)
 
-PEtabTraining.jl implements training strategies to make parameter estimation more efficient
-for both ordinary differential equation (ODE) models and scientific machine learning
-(SciML) models (ODEs with neural network components) more efficient. The package is
-designed to be used with [PEtab.jl](https://github.com/sebapersson/PEtab.jl) for ODE
-parameter estimation: training strategies can be applied directly to a `PEtabODEProblem` to
-obtain modified training objectives (e.g. a multiple-shooting objective) with a single line
-of code.
+PEtabTraining.jl implements training strategies that improve the efficiency of parameter
+estimation for both ordinary differential equation (ODE) models and scientific machine
+learning (SciML) models. The package is designed to be used with
+[PEtab.jl](https://github.com/sebapersson/PEtab.jl): training strategies can be applied
+directly to a `PEtabODEProblem` to obtain modified training objectives (e.g. multiple
+shooting objective) with a single line of code.
 
 Currently, three training strategies are implemented:
 
 - **Curriculum learning**: strategy where problem difficulty is progressively increased
-  across curriculum stages. For ODE problems, this is typically done by gradually
-  increasing the number of measurement time points (and often the simulation end time)
-  over a fixed number of stages.
+  across curriculum stages. For dynamic models, this is typically done by gradually
+  increasing the number of measurement time points (and often the simulation end time) over
+  a fixed number of stages.
 - **Multiple shooting**: strategy where the ODE simulation time span is split into windows
-  that are fitted jointly. Each window has its own estimated initial state, and a
-  continuity penalty is used to promote continuity between adjacent windows.
+  that are fitted jointly. Each window has its own estimated initial state, and a continuity
+  penalty is used to promote continuity between adjacent windows.
 - **Curriculum multiple shooting**: strategy combining multiple shooting with a curriculum
-  schedule. Training starts from a multiple-shooting formulation (often easier to
-  optimize) and progressively reduces the number of windows until the original
-  single-window problem is recovered.
+  schedule. Training starts from a multiple-shooting formulation (often easier to optimize)
+  and progressively reduces the number of windows until the original single-window problem
+  is recovered.
 
-Concrete examples on how to apply these training strategies can be found in the
+Concrete examples of how to apply these training strategies are available in the
 [PEtab.jl documentation](https://sebapersson.github.io/PEtab.jl/stable/), while the
-[PEtabTraining.jl documentation](https://sebapersson.github.io/PEtab.jl/stable/) holds
-the detailed options for each strategy.
+[PEtabTraining.jl documentation](https://sebapersson.github.io/PEtabTraining.jl/stable/)
+contains the detailed API and options for each strategy.
 
 ## Installation
 
@@ -51,3 +51,20 @@ Pkg.add("PEtabTraining")
 PEtabTraining.jl is compatible with Julia 1.10 and above. For additional installation
 details, see the online
 [documentation](https://sebapersson.github.io/PEtabTraining.jl/stable/).
+
+## Citation
+
+If you use PEtabTraining.jl in work that is published, please cite the paper below:
+
+```bibtex
+@article{PEtabBioinformatics2025,
+  title={PEtab.jl: advancing the efficiency and utility of dynamic modelling},
+  author={Persson, Sebastian and Fr{\"o}hlich, Fabian and Grein, Stephan and Loman, Torkel and Ognissanti, Damiano and Hasselgren, Viktor and Hasenauer, Jan and Cvijovic, Marija},
+  journal={Bioinformatics},
+  volume={41},
+  number={9},
+  pages={btaf497},
+  year={2025},
+  publisher={Oxford University Press}
+}
+```
