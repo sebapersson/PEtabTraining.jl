@@ -8,10 +8,6 @@ end
     include("curriculum.jl")
 end
 
-@safetestset "Input checking" begin
-    include("errors.jl")
-end
-
 @safetestset "Multiple shooting" begin
     include("multiple_shooting.jl")
 end
@@ -20,10 +16,16 @@ end
     include("cl_ms_combined.jl")
 end
 
-@safetestset "show" begin
-    include("show.jl")
-end
+if !core_only
+    @safetestset "Input checking" begin
+        include("errors.jl")
+    end
 
-@safetestset "Util functions" begin
-    include("util.jl")
+    @safetestset "show" begin
+        include("show.jl")
+    end
+
+    @safetestset "Util functions" begin
+        include("util.jl")
+    end
 end

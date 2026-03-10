@@ -20,7 +20,6 @@ jobs:
       matrix:
         version:
           - '1.10'
-          - '1.12'
         os:
           - ubuntu-latest
         arch:
@@ -48,7 +47,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, windows-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest]
         julia: ['1.12']
     steps:
       - uses: actions/checkout@v2
@@ -82,35 +81,3 @@ jobs:
             using PEtabTraining
             DocMeta.setdocmeta!(PEtabTraining, :DocTestSetup, :(using PEtabTraining); recursive=true)
             doctest(PEtabTraining)'
-  update_testsuite_csv:
-    name: Update SBML testsuite support
-    needs: [test_full, test_core, docs]
-    if: github.ref == 'refs/heads/main'      
-    runs-on: ubuntu-latest
-
-    permissions:
-      contents: write
-      pull-requests: write
-
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
-      - uses: julia-actions/setup-julia@v1
-        with:
-          version: '1.12'
-      - run: julia -e 'using Pkg; Pkg.add.(["CSV", "DataFrames"])'
-      - name: Generate testsuite CSV file
-        run: julia test/export_testsuite_support.jl
-      - name: Create PR with updated CSV
-        uses: peter-evans/create-pull-request@v6
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          branch: ci/update-testsuite-csv        
-          title: "ci: auto-update testsuite CSV"
-          commit-message: "ci: auto-update testsuite CSV"
-          body: "This PR was created automatically by the CI workflow."
-          add-paths: sbml_testsuite_support.csv  
-          delete-branch: true                    
-
