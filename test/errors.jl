@@ -2,83 +2,63 @@ using PEtab, PEtabTraining, Test
 
 # Uniform splitting + curriculum
 model_id = "Weber_BMC2015"
-path_yaml = joinpath(@__DIR__, "published_models", model_id, "$(model_id).yaml")
+path_yaml = joinpath(@__DIR__, "models", model_id, "$(model_id).yaml")
 petab_prob = PEtabModel(path_yaml) |> PEtabODEProblem
 @test_throws ArgumentError begin
-    PEtabCurriculumProblem(petab_prob, SplitUniform(3; mode = :conditions))
+    PEtabClProblem(petab_prob, SplitTime(14))
 end
 @test_throws ArgumentError begin
-    PEtabCurriculumProblem(petab_prob, SplitUniform(4; mode = :condition))
-end
-@test_throws ArgumentError begin
-    PEtabCurriculumProblem(petab_prob, SplitUniform(14; mode = :time))
-end
-@test_throws ArgumentError begin
-    PEtabCurriculumProblem(petab_prob, SplitUniform(137; mode = :datapoints))
+    PEtabClProblem(petab_prob, SplitData(137))
 end
 
 # Custom splitting + curriculum
 model_id = "Boehm_JProteomeRes2014"
-path_yaml = joinpath(@__DIR__, "published_models", model_id, "$(model_id).yaml")
+path_yaml = joinpath(@__DIR__, "models", model_id, "$(model_id).yaml")
 petab_prob = PEtabModel(path_yaml) |> PEtabODEProblem
-@test_throws ArgumentError begin
-    PEtabCurriculumProblem(petab_prob, SplitCustom([3.0, 2.0, 4.0]; mode = :time))
-end
-@test_throws ArgumentError begin
-    PEtabCurriculumProblem(petab_prob, SplitCustom([3.0, 4.0, 250]; mode = :time))
-end
-@test_throws ArgumentError begin
-    PEtabCurriculumProblem(petab_prob, SplitCustom([3.0, 10.0, 230]; mode = :time))
-end
-@test_throws ArgumentError begin
-    PEtabCurriculumProblem(petab_prob, SplitCustom([3.0, 10.0, 230]; mode = :datapoints))
-end
-@test_throws ArgumentError begin
-    PEtabCurriculumProblem(petab_prob, SplitCustom([3, 4, 49]; mode = :datapoints))
-end
-@test_throws ArgumentError begin
-    PEtabCurriculumProblem(petab_prob, SplitCustom([3, 2, 48]; mode = :datapoints))
-end
 
-model_id = "Fujita_SciSignal2010"
-path_yaml = joinpath(@__DIR__, "published_models", model_id, "$(model_id).yaml")
-petab_prob = PEtabModel(path_yaml) |> PEtabODEProblem
 @test_throws ArgumentError begin
-    splits = [[:condition_step_00_1, :condition_step_00_3],
-        [:condition_step_01_0, :condition_step_03_0], [:condition_step_30_0]]
-    PEtabCurriculumProblem(petab_prob, SplitCustom(splits; mode = :condition))
+    PEtabClProblem(petab_prob, SplitTime([3.0, 2.0, 4.0]))
 end
 @test_throws ArgumentError begin
-    splits = [[:condition_step_00_1, :condition_step_00_3],
-        [:condition_step_01_0, :condition_step_03_0], Symbol[]]
-    SplitCustom(splits; mode = :condition)
+    PEtabClProblem(petab_prob, SplitTime([3.0, 4.0, 250]))
+end
+@test_throws ArgumentError begin
+    PEtabClProblem(petab_prob, SplitTime([3.0, 12.0, 13.0, 230]))
+end
+@test_throws ArgumentError begin
+    PEtabClProblem(petab_prob, SplitData([3, 4, 49]))
+end
+@test_throws ArgumentError begin
+    PEtabClProblem(petab_prob, SplitData([3, 2, 48]))
 end
 
 # Multiple shooting unique errors
 model_id = "Boehm_JProteomeRes2014"
-path_yaml = joinpath(@__DIR__, "published_models", model_id, "$(model_id).yaml")
+path_yaml = joinpath(@__DIR__, "models", model_id, "$(model_id).yaml")
 petab_prob = PEtabModel(path_yaml) |> PEtabODEProblem
 @test_throws ArgumentError begin
-    PEtabMultipleShootingProblem(petab_prob, SplitUniform(4; mode = :condition))
+    PEtabMsProblem(petab_prob, SplitTime(49))
 end
 @test_throws ArgumentError begin
-    PEtabMultipleShootingProblem(petab_prob, SplitUniform(4; mode = :datapoints))
+    PEtabMsProblem(petab_prob, SplitTime([3.0, 240.0]))
 end
 @test_throws ArgumentError begin
-    PEtabMultipleShootingProblem(petab_prob, SplitCustom([1, 48]; mode = :datapoints))
+    PEtabMsProblem(petab_prob, SplitTime([-3.0, 230.0]))
 end
-model_id = "Fujita_SciSignal2010"
-path_yaml = joinpath(@__DIR__, "published_models", model_id, "$(model_id).yaml")
-petab_prob = PEtabModel(path_yaml) |> PEtabODEProblem
-splits = [[:condition_step_00_1, :condition_step_00_3],
-    [:condition_step_01_0, :condition_step_03_0],
-    [:condition_step_10_0, :condition_step_30_0]]
-@test_throws ArgumentError begin
-    PEtabMultipleShootingProblem(petab_prob, SplitCustom(splits; mode = :condition))
-end
+
 model_id = "Weber_BMC2015"
-path_yaml = joinpath(@__DIR__, "published_models", model_id, "$(model_id).yaml")
+path_yaml = joinpath(@__DIR__, "models", model_id, "$(model_id).yaml")
 petab_prob = PEtabModel(path_yaml) |> PEtabODEProblem
 @test_throws ArgumentError begin
-    PEtabMultipleShootingProblem(petab_prob, SplitUniform(4))
+    PEtabMsProblem(petab_prob, SplitTime(4))
+end
+
+# Combined approach
+model_id = "Boehm_JProteomeRes2014"
+path_yaml = joinpath(@__DIR__, "models", model_id, "$(model_id).yaml")
+petab_prob = PEtabModel(path_yaml) |> PEtabODEProblem
+prob_cl_ms = PEtabClMsProblem(petab_prob, SplitTime(3))
+x_test = get_x(prob_cl_ms.petab_problems[1])
+@test_throws ArgumentError begin
+    set_u0_ms_windows!(x_test, prob_cl_ms, 4; init = MsInitConstant(5.0))
 end
