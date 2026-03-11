@@ -30,12 +30,19 @@ function test_nllh(
         )
     end
 
-    nllh_ref = petab_prob_ref.nllh(get_x(petab_prob_ref))
-    nllh_test = prob_cl_stage.nllh(get_x(prob_original))
+    x_original = get_x(prob_original)
+    x_ref = get_x(petab_prob_ref)
+    if haskey(x_original, :net1)
+        x_original.net1 .= 0.001
+        x_ref.net1 .= 0.001
+    end
+
+    nllh_ref = petab_prob_ref.nllh(x_ref)
+    nllh_test = prob_cl_stage.nllh(x_original)
     if model_id != "ude_model"
         @test nllh_ref ≈ nllh_test atol = 1.0e-8
     else
-        @test nllh_ref ≈ nllh_test atol = 1.0e-3
+        @test nllh_ref ≈ nllh_test atol = 1.0e-6 rtol = 1.0e-6
     end
     return nothing
 end

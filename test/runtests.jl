@@ -1,5 +1,7 @@
 using SafeTestsets
 
+core_only = get(ENV, "CORE_ONLY", "false") == "true"
+
 @safetestset "Aqua" begin
     include("aqua.jl")
 end
