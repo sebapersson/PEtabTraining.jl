@@ -65,22 +65,6 @@ function _get_sorted_measurements_df(prob::PEtabODEProblem)::DataFrame
     return measurements_df[sortperm(measurements_df.time), :]
 end
 
-function _splits_to_windows(splits::Vector{<:Real})
-    splits = [[0.0, split] for split in splits]
-    for i in 2:length(splits)
-        splits[i][1] = maximum(splits[i - 1])
-    end
-    return splits
-end
-
-function _transform_x!(prob::PEtabODEProblem)::Nothing
-    @unpack xnominal, xnominal_transformed, xnames, model_info = prob
-    @views xnominal_transformed .= PEtab.transform_x(
-        xnominal, xnames, model_info.xindices; to_xscale = true
-    )
-    return nothing
-end
-
 """
 _perm_from_labels(x::ComponentVector, y::ComponentVector)
 
