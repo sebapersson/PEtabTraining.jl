@@ -7,7 +7,7 @@ function Base.show(io::Core.IO, prob_cl::PEtabClProblem)
 
     header = styled"{bold:PEtabClProblem} {emphasis:$(name)}: $(n_stages) CL stages, $nx \
         parameters\n(for more statistics, call `describe(prob_cl)`)"
-    print(io, styled"$(header)")
+    return print(io, styled"$(header)")
 end
 function Base.show(io::Core.IO, prob_ms::PEtabMsProblem)
     nx = length(prob_ms.original.xnominal)
@@ -16,7 +16,7 @@ function Base.show(io::Core.IO, prob_ms::PEtabMsProblem)
 
     header = styled"{bold:PEtabMsProblem} {emphasis:$(name)}: $(n_windows) MS windows, $nx \
         parameters\n(for more statistics, call `describe(prob_ms)`)"
-    print(io, styled"$(header)")
+    return print(io, styled"$(header)")
 end
 function Base.show(io::Core.IO, prob_cl_ms::PEtabClMsProblem)
     nx = length(prob_cl_ms.original.xnominal)
@@ -25,7 +25,7 @@ function Base.show(io::Core.IO, prob_cl_ms::PEtabClMsProblem)
 
     header = styled"{bold:PEtabClMsProblem} {emphasis:$(name)}: $(n_stages) CL stages, $nx \
         parameters\n(for more statistics, call `describe(prob_cl_ms)`)"
-    print(io, styled"$(header)")
+    return print(io, styled"$(header)")
 end
 
 """
@@ -156,7 +156,7 @@ function _get_model_stats(prob::PEtabODEProblem)
 
     return (
         nx = nx, n_states = n_states, n_ps_ode = n_ps_ode, n_observables = n_observables,
-        n_conditions = n_conditions
+        n_conditions = n_conditions,
     )
 end
 
@@ -177,7 +177,7 @@ function _fmt_windows(ms_windows::Vector{<:Vector{<:Real}}; max_show::Int = 5)
     else
         # show first 2 and last 2
         head = spans[1:2]
-        tail = spans[end-1:end]
+        tail = spans[(end - 1):end]
         return join(vcat(head, ["…"], tail), ", ")
     end
 end
