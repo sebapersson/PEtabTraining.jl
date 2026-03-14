@@ -211,7 +211,7 @@ function _get_p_original(
 end
 
 """
-map_x_stage(x, cl_ms_prob::PEtabClMsProblem; from::Integer=1, to::Integer=2)
+    map_x_stage(x, cl_ms_prob::PEtabClMsProblem, from::Integer, to::Integer)
 
 Map input Vector `x` coming from stage `from` to the layout of stage `to` for a
 `PEtabClMsProblem`
