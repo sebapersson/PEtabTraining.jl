@@ -27,3 +27,23 @@ y = ComponentVector(
     iy = PEtabTraining._perm_from_labels(y, x)
     @test all(x[iy] .== y)
 end
+
+# Allocate Curriculum stages
+cl_epochs = allocate_cl_epochs(6000, 5, 1 / 3)
+@test cl_epochs == [
+    1 => 1:500, 2 => 501:1000, 3 => 1001:1500, 4 => 1501:2000, 5 => 2001:6000,
+]
+cl_epochs = allocate_cl_epochs(6000, 5, 0.5)
+@test cl_epochs == [
+    1 => 1:750, 2 => 751:1500, 3 => 1501:2250, 4 => 2251:3000, 5 => 3001:6000,
+]
+# Test epochs are evenly distributed across stages
+for n_stages in 3:15
+    cl_epochs = allocate_cl_epochs(6000, n_stages, 0.47)
+    diff_cl = [length(cl_epochs[i + 1].second) - length(cl_epochs[i].second) for i in 1:(n_stages - 2)]
+    @test all(abs.(diff_cl) .≤ 1)
+end
+# Error checking
+@test_throws ArgumentError allocate_cl_epochs(6000, 5, 1.2)
+@test_throws ArgumentError allocate_cl_epochs(6000, 5, 0.0)
+@test_throws ArgumentError allocate_cl_epochs(10, 10, 0.3)
