@@ -20,10 +20,11 @@ SplitTime
 SplitData
 ```
 
-Utility functions are provided for setting window initial values and the continuity window
-penalty for multiple-shooting-based methods.
+Utility functions are provided for allocating curriculum training epochs, as well as for
+setting window initial values and continuity penalties for multiple-shooting-based methods:
 
 ```@docs; canonical=true
+allocate_cl_epochs
 set_ms_window_penalty!
 set_u0_ms_windows!
 MsInitConstant
@@ -31,7 +32,7 @@ MsInitFirst
 MsInitSimulate
 ```
 
-For `PEtabClMsProblem`, there is also a function for mapping parameters between curriculum
+For `PEtabClMsProblem`, there is a function for mapping parameters between curriculum
 stages:
 
 ```@docs; canonical=true

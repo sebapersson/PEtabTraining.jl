@@ -219,14 +219,14 @@ Map input Vector `x` coming from stage `from` to the layout of stage `to` for a
 `from` and `to` must be valid stage indices. `x` can be a `Vector` or a `ComponentVector`,
 with the ordering expected by `PEtabODEProblem` in stage `from`.
 """
-function map_x_stage(x, clms::PEtabClMsProblem, from::Integer = 1, to::Integer = 2)
-    @argcheck 1 ≤ from ≤ length(clms.petab_problems) "invalid `from` stage index"
-    @argcheck 1 ≤ to ≤ length(clms.petab_problems) "invalid `to` stage index"
+function map_x_stage(x, prob_cl_ms::PEtabClMsProblem, from::Integer = 1, to::Integer = 2)
+    @argcheck 1 ≤ from ≤ length(prob_cl_ms.petab_problems) "invalid `from` stage index"
+    @argcheck 1 ≤ to ≤ length(prob_cl_ms.petab_problems) "invalid `to` stage index"
     @argcheck from != to
 
     # target prototype to preserve types/ordering/defaults
-    x_to = clms.petab_problems[to].xnominal_transformed |> deepcopy
-    x_from = clms.petab_problems[from].xnominal_transformed |> deepcopy
+    x_to = prob_cl_ms.petab_problems[to].xnominal_transformed |> deepcopy
+    x_from = prob_cl_ms.petab_problems[from].xnominal_transformed |> deepcopy
     if from < to
         ix = _perm_from_labels(x_to, x_from)
         x_to .= x[ix]
@@ -240,4 +240,49 @@ function map_x_stage(x, clms::PEtabClMsProblem, from::Integer = 1, to::Integer =
         x_to[ix] .= x
     end
     return x_to
+end
+
+"""
+    allocate_cl_epochs(n_epochs::Integer, n_stages::Integer, cl_fraction::Real)
+
+Allocate `n_epochs` across `n_stages` curriculum stages, where the first `n_stages - 1`
+stages share a total fraction `cl_fraction` of the epochs.
+
+These epochs are distributed as evenly as possible across the stages when `n_epochs` is not
+dividable by `n_stages`.
+
+# Returns
+
+A vector of pairs `stage `stage `stage => epoch_range`, where `epoch_range` gives the epoch
+range assigned to the stage.
+"""
+function allocate_cl_epochs(n_epochs::Integer, n_stages::Integer, cl_fraction::Real)
+    @argcheck n_epochs > 0
+    @argcheck n_stages >= 2
+    @argcheck cl_fraction > 0
+    @argcheck cl_fraction < 1
+
+    curriculum_epochs = round(Int64, n_epochs * cl_fraction)
+    num_curriculum_stages = n_stages - 1
+
+    if curriculum_epochs < num_curriculum_stages
+        throw(ArgumentError("Curriculum fraction too small: not enough epochs for \
+            each curriculum stage to have at least one epoch"))
+    end
+
+    base_epochs = curriculum_epochs ÷ num_curriculum_stages
+    extra_epochs = curriculum_epochs % num_curriculum_stages
+
+    ranges = Vector{Pair{Int64, UnitRange{Int64}}}(undef, n_stages)
+    current_epoch = 1
+    for stage in 1:num_curriculum_stages
+        epochs_this_stage = base_epochs + (stage <= extra_epochs ? 1 : 0)
+        end_epoch = current_epoch + epochs_this_stage - 1
+        ranges[stage] = stage => current_epoch:end_epoch
+        current_epoch = end_epoch + 1
+    end
+
+    # Last stage gets the remaining epochs
+    ranges[n_stages] = n_stages => current_epoch:n_epochs
+    return ranges
 end
