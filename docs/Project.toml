@@ -6,3 +6,4 @@ PEtabTraining = "ed36266e-456b-4f4e-a6d5-e20de27032ad"
 [compat]
 Documenter = "1.17.0"
 DocumenterVitepress = "0.3.2"
+PEtabTraining = "0.1.1"
