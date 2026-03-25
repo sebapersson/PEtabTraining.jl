@@ -2,3 +2,8 @@
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
 DocumenterVitepress = "4710194d-e776-4893-9690-8d956a29c365"
 PEtabTraining = "ed36266e-456b-4f4e-a6d5-e20de27032ad"
+
+[compat]
+Documenter = "1.17.0"
+DocumenterVitepress = "0.3.2"
+PEtabTraining = "0.1.1"
