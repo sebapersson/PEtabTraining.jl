@@ -1,6 +1,15 @@
 function _makechunks(x::AbstractVector, n::Integer; overlap::Integer = 0)
-    c = length(x) ÷ n
-    chunks = [x[(1 + c * k):(k == n - 1 ? end : c * k + c)] for k in 0:(n - 1)]
+    total = length(x)
+    base = total ÷ n
+    extra = total % n
+    sizes = vcat(fill(base + 1, extra), fill(base, n - extra))
+    chunks = Vector{typeof(x)}(undef, n)
+    start = 1
+    for i in 1:n
+        stop = start + sizes[i] - 1
+        chunks[i] = x[start:stop]
+        start = stop + 1
+    end
     overlap == 0 && return chunks
     for i in 1:(length(chunks) - 1)
         chunks[i] = vcat(chunks[i], chunks[i + 1][1:overlap])

@@ -47,3 +47,10 @@ end
 @test_throws ArgumentError allocate_cl_epochs(6000, 5, 1.2)
 @test_throws ArgumentError allocate_cl_epochs(6000, 5, 0.0)
 @test_throws ArgumentError allocate_cl_epochs(10, 10, 0.3)
+
+# Test that the splitting functions split the data into chunks of approximately equal size
+for n_chunks in [3, 5, 13, 21]
+    c = PEtabTraining._makechunks(collect(1:61), n_chunks)
+    diff = [length(c[i + 1]) - length(c[i]) for i in 1:(length(c) - 1)]
+    @test all(abs.(diff) .≤ 1)
+end

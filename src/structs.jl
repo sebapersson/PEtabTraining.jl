@@ -7,7 +7,8 @@ end
 Split the measurements in the measurement table into `n` chunks based on unique time points.
 
 The resulting chunking is applied to each simulation condition. If the number of unique time
-points is not divisible by `n`, the last chunk contains the remaining time points.
+points is not divisible by `n`, chunk sizes differ by at most one time point, with earlier
+chunks containing the additional points.
 """
 SplitTime(n::T) where {T <: Integer} = SplitTime{T}(n)
 """
@@ -32,7 +33,8 @@ end
 Splits the time-sorted measurements into `n` chunks (uniform by number of data points).
 
 The resulting chunking is applied to each simulation condition. If the number of data points
-is not divisible by `n`, the last chunk contains the remaining data points.
+is not divisible by `n`, chunk sizes differ by at most one data point, with earlier chunks
+containing the additional points.
 
 If all measurements have a unique time point, this is equivalent to `SplitTime(n)`.
 """
