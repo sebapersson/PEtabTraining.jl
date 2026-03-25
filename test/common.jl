@@ -48,16 +48,11 @@ function test_nllh(
 end
 
 function test_chunk_size(chunks)
-    n_stages = length(chunks)
     for i in 1:(length(chunks) - 1)
-        # Sometimes chunks cannot be divided uniformly, then the last is bigger
-        if i == length(chunks) - 1
-            @test abs(length(chunks[i]) - length(chunks[i + 1])) < n_stages
-        else
-            @test length(chunks[i]) == length(chunks[i + 1])
-        end
+        diff = abs(length(chunks[i]) - length(chunks[i + 1]))
+        @test diff ≤ 1
     end
-    return
+    return nothing
 end
 
 function _get_prob_duplicated(model_id, prob::PEtabODEProblem, ms_windows)
