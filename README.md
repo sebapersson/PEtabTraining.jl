@@ -19,7 +19,7 @@ learning (SciML) models. The package is designed to be used with
 directly to a `PEtabODEProblem` to obtain modified training objectives (e.g. multiple
 shooting objective) with a single line of code.
 
-Currently, three training strategies are implemented:
+Currently, two training strategies are implemented:
 
 - **Curriculum learning**: strategy where problem difficulty is progressively increased
   across curriculum stages. For dynamic models, this is typically done by gradually
@@ -28,10 +28,6 @@ Currently, three training strategies are implemented:
 - **Multiple shooting**: strategy where the ODE simulation time span is split into windows
   that are fitted jointly. Each window has its own estimated initial state, and a continuity
   penalty is used to promote continuity between adjacent windows.
-- **Curriculum multiple shooting**: strategy combining multiple shooting with a curriculum
-  schedule. Training starts from a multiple-shooting formulation (often easier to optimize)
-  and progressively reduces the number of windows until the original single-window problem
-  is recovered.
 
 Concrete examples of how to apply these training strategies are available in the
 [PEtab.jl documentation](https://sebapersson.github.io/PEtab.jl/stable/), while the
