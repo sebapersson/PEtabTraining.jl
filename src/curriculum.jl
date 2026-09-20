@@ -41,7 +41,9 @@ function _get_petab_tables_cl(
     chunks = _split_cl(split_alg, prob)
     out = Vector{PEtab.PEtabTables}(undef, length(chunks))
     for (i, chunk) in pairs(chunks)
-        out[i] = copy(prob.model_info.model.petab_tables)
+        # deepcopy, as building a PEtabModel mutates tables (e.g. the hybridization
+        # table), which with a shallow copy would leak between the stages
+        out[i] = deepcopy(prob.model_info.model.petab_tables)
         if split_alg isa SplitTime
             out[i][:measurements] = measurements_df[measurements_df[!, :time] .≤ chunk, :]
         else

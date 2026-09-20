@@ -20,6 +20,22 @@ function _PEtabODEProblem(
     )
     prob_to_original = _perm_from_labels(prob_original.xnominal, prob.xnominal)
     original_to_prob = _perm_from_labels(prob.xnominal, prob_original.xnominal)
+
+    # Usually every parameter appears for every split, in which case both index maps are
+    # the identity. Wrapping each function in a permutation closure then only adds a layer
+    # for the compiler, and an array copy for every objective and gradient call, so the
+    # sub-problem functions are used as is
+    if original_to_prob == eachindex(original_to_prob)
+        return PEtabODEProblem(
+            prob.nllh, prob.chi2, prob.grad!, prob.grad, prob.hess!, prob.hess,
+            prob.hess!, prob.hess, prob.nllh_grad, prob.prior, prob.grad_prior,
+            prob.hess_prior, prob.simulated_values, prob.residuals, prob.probinfo,
+            prob.model_info, prob.nparameters_estimate, prob_original.xnames,
+            prob_original.xnominal, prob_original.xnominal_transformed,
+            prob_original.lower_bounds, prob_original.upper_bounds
+        )
+    end
+
     nllh = _get_nllh(prob, original_to_prob)
     prior = _get_prior(prob, original_to_prob)
     chi2 = _get_chi2(prob, original_to_prob)
@@ -149,14 +165,13 @@ function _get_grad_prior(
     grad_prior = let _original_to_prob = original_to_prob,
             _prob_to_original = prob_to_original, _prob = prob
 
-        (g, x) -> begin
+        (x) -> begin
             _x = x[_original_to_prob]
             g = _prob.grad_prior(collect(_x))
-            g .= g[_prob_to_original]
-            return nothing
+            return g[_prob_to_original]
         end
     end
-    return _get_grad_prior
+    return grad_prior
 end
 
 function _get_hess(
@@ -201,7 +216,7 @@ function _get_hess_prior(
     hess_prior = let _original_to_prob = original_to_prob,
             _prob_to_original = prob_to_original, _prob = prob
 
-        (H_out, x) -> begin
+        (x) -> begin
             _x = x[_original_to_prob]
             H_prior = _prob.hess_prior(collect(_x))
             H_out = similar(H_prior)
