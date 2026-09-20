@@ -181,8 +181,13 @@ As in [`PEtabMsProblem`](@ref), each multiple-shooting stage includes a quadrati
 penalty applied at the first time point shared by two consecutive windows; the penalty
 weight can be set with [`set_ms_window_penalty!`](@ref).
 
+The curriculum multiple shooting strategy, and benchmarks against other training
+strategies, are described in [1].
+
 See also [`SplitTime`](@ref), [`PEtabMsProblem`](@ref), [`set_ms_window_penalty!`](@ref),
 [`map_x_stage`](@ref).
+
+1. Persson et al., *arXiv:2608.05777* (2026).
 """
 struct PEtabClMsProblem
     petab_problems::Vector{PEtabODEProblem}

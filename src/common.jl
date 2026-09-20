@@ -82,9 +82,17 @@ Return a permutation ix such that getdata(y)[ix] == getdata(x).
 function _perm_from_labels(
         x::ComponentArrays.ComponentVector, y::ComponentArrays.ComponentVector
     )
+    # A lookup table is built for y, as resolving labels one by one with `label2index`
+    # scans the axis of y for each label, which makes the mapping quadratic in the number
+    # of parameters. This is costly for ML models, where every weight and bias carries its
+    # own label
+    iy = Dict{String, Int64}()
+    for (i, label) in pairs(ComponentArrays.labels(y))
+        iy[label] = i
+    end
     ix = fill(0, length(x))
     for (i, label) in pairs(ComponentArrays.labels(x))
-        ix[i] = only(ComponentArrays.label2index(y, label))
+        ix[i] = iy[label]
     end
     return ix
 end

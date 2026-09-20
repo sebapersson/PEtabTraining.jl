@@ -19,7 +19,7 @@ learning (SciML) models. The package is designed to be used with
 directly to a `PEtabODEProblem` to obtain modified training objectives (e.g. multiple
 shooting objective) with a single line of code.
 
-Currently, two training strategies are implemented:
+Currently, three training strategies are implemented:
 
 - **Curriculum learning**: strategy where problem difficulty is progressively increased
   across curriculum stages. For dynamic models, this is typically done by gradually
@@ -28,6 +28,10 @@ Currently, two training strategies are implemented:
 - **Multiple shooting**: strategy where the ODE simulation time span is split into windows
   that are fitted jointly. Each window has its own estimated initial state, and a continuity
   penalty is used to promote continuity between adjacent windows.
+- **Curriculum multiple shooting**: strategy combining multiple shooting with a curriculum
+  schedule. Training starts from a multiple-shooting formulation (often easier to optimize)
+  and progressively reduces the number of windows until the original single-window problem
+  is recovered.
 
 Concrete examples of how to apply these training strategies are available in the
 [PEtab.jl documentation](https://sebapersson.github.io/PEtab.jl/stable/), while the
@@ -50,9 +54,21 @@ details, see the online
 
 ## Citation
 
-If you use PEtabTraining.jl in work that is published, please cite the paper below:
+If you use PEtabTraining.jl in work that is published, please cite the papers below. The
+first paper introduces the curriculum multiple shooting strategy and benchmarks the training
+strategies implemented in this package, while the second describes PEtab.jl:
 
 ```bibtex
+@misc{CurriculumMultipleShootingArxiv2026,
+  title={Curriculum Multiple Shooting for Robust Training of Neural and Universal Differential Equations},
+  author={Persson, Sebastian and Fabrini, Giacomo and Snelling, Branwen and Fr{\"o}hlich, Fabian},
+  year={2026},
+  eprint={2608.05777},
+  archivePrefix={arXiv},
+  primaryClass={q-bio.QM},
+  url={https://arxiv.org/abs/2608.05777}
+}
+
 @article{PEtabBioinformatics2025,
   title={PEtab.jl: advancing the efficiency and utility of dynamic modelling},
   author={Persson, Sebastian and Fr{\"o}hlich, Fabian and Grein, Stephan and Loman, Torkel and Ognissanti, Damiano and Hasselgren, Viktor and Hasenauer, Jan and Cvijovic, Marija},
